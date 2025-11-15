@@ -1,5 +1,6 @@
 pub mod handshake;
 pub(crate) mod macros;
+pub(crate) mod util;
 
 #[derive(Debug)]
 pub struct CipherSuite {
