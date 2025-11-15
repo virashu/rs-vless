@@ -2,7 +2,6 @@ use anyhow::bail;
 use std::{
     io::{Read, Write},
     net::TcpListener,
-    sync::Arc,
 };
 use tls::{
     CipherSuite,
