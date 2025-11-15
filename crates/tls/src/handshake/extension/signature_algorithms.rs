@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::macros::auto_try_from;
+use crate::{macros::auto_try_from, util::opaque_vec_16};
 
 auto_try_from! {
     #[repr(u16)]
@@ -40,6 +40,7 @@ auto_try_from! {
 #[derive(Debug)]
 pub struct SignatureAlgorithms {
     length: u16,
+
     pub supported_signature_algorithms: Box<[SignatureScheme]>,
 }
 
@@ -47,8 +48,8 @@ impl SignatureAlgorithms {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[0], raw[1]]);
 
-        let supported_signature_algorithms_length = u16::from_be_bytes([raw[2], raw[3]]) as usize;
-        let supported_signature_algorithms = raw[4..(supported_signature_algorithms_length + 4)]
+        let (_, data) = opaque_vec_16(&raw[2..]);
+        let supported_signature_algorithms = data
             .chunks_exact(2)
             .filter_map(|c| SignatureScheme::try_from(u16::from_be_bytes([c[0], c[1]])).ok())
             .collect();

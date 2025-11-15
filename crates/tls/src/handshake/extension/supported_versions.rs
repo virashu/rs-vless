@@ -1,5 +1,7 @@
 use anyhow::Result;
 
+use crate::util::opaque_vec_8;
+
 #[derive(Debug)]
 pub enum SupportedVersionsContent {
     Client(Box<[u16]>),
@@ -19,12 +21,12 @@ impl SupportedVersions {
         let content = if length == 2 {
             SupportedVersionsContent::Server(u16::from_be_bytes([raw[2], raw[3]]))
         } else {
-            let len = raw[2] as usize;
-            let v = raw[3..(len + 3)]
-                .chunks_exact(2)
-                .map(|c| u16::from_be_bytes([c[0], c[1]]))
-                .collect();
-            SupportedVersionsContent::Client(v)
+            let (_, data) = opaque_vec_8(&raw[2..]);
+            SupportedVersionsContent::Client(
+                data.chunks_exact(2)
+                    .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                    .collect(),
+            )
         };
 
         Ok(Self { length, content })

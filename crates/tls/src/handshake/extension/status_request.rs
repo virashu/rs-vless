@@ -1,13 +1,13 @@
 use anyhow::{Result, bail};
 
-use std::sync::Arc;
+use crate::util::opaque_vec_16;
 
 #[derive(Debug)]
 pub struct StatusRequest {
     length: u16,
 
-    pub responder_id: Arc<[u8]>,
-    pub extensions: Arc<[u8]>,
+    pub responder_id: Box<[u8]>,
+    pub extensions: Box<[u8]>,
 }
 
 impl StatusRequest {
@@ -21,13 +21,10 @@ impl StatusRequest {
 
         let mut offset = 3;
 
-        let responder_id_length = u16::from_be_bytes([raw[offset], raw[offset + 1]]) as usize;
-        offset += 2;
-        let responder_id = raw[offset..(offset + responder_id_length)].into();
+        let (size, responder_id) = opaque_vec_16(&raw[offset..]);
+        offset += size;
 
-        let extensions_length = u16::from_be_bytes([raw[offset], raw[offset + 1]]) as usize;
-        offset += 2;
-        let extensions = raw[offset..(offset + extensions_length)].into();
+        let (_, extensions) = opaque_vec_16(&raw[offset..]);
 
         Ok(Self {
             length,

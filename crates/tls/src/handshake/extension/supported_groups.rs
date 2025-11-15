@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::macros::auto_try_from;
+use crate::{macros::auto_try_from, util::opaque_vec_16};
 
 auto_try_from! {
     #[repr(u16)]
@@ -27,15 +27,15 @@ auto_try_from! {
 pub struct SupportedGroups {
     length: u16,
 
-    pub named_group_list: Vec<NamedGroup>,
+    pub named_group_list: Box<[NamedGroup]>,
 }
 
 impl SupportedGroups {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[0], raw[1]]);
 
-        let named_group_list_length = u16::from_be_bytes([raw[2], raw[3]]) as usize;
-        let named_group_list = raw[4..(named_group_list_length + 4)]
+        let (_, data) = opaque_vec_16(&raw[2..]);
+        let named_group_list = data
             .chunks_exact(2)
             .filter_map(|c| NamedGroup::try_from(u16::from_be_bytes([c[0], c[1]])).ok())
             .collect();

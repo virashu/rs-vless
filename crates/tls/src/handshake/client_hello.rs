@@ -1,12 +1,12 @@
 use anyhow::{Result, bail};
 
-use std::sync::Arc;
-
 use crate::{
     CipherSuite,
     handshake::extension::Extension,
     util::{opaque_vec_8, opaque_vec_16},
 };
+
+use super::extension::ExtParent;
 
 #[derive(Debug)]
 pub struct ClientHello {
@@ -19,30 +19,17 @@ pub struct ClientHello {
 
 impl ClientHello {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
-        let mut offset: usize = 0;
-
         let legacy_version = u16::from_be_bytes([raw[0], raw[1]]);
         if legacy_version != 0x0303 {
             bail!("Invalid legacy version: {legacy_version} (should be equal 0x0303)");
         }
-        offset += 2;
 
-        let random = Box::new(raw[(offset)..(offset + 32)].try_into()?);
-        offset += 32;
+        let random = Box::new(raw[2..(2 + 32)].try_into()?);
+
+        let mut offset: usize = 34;
 
         let (size, legacy_session_id) = opaque_vec_8(&raw[offset..]);
         offset += size;
-
-        // let cipher_suites_length = u16::from_be_bytes([raw[offset], raw[offset + 1]]) as usize;
-        // offset += 2;
-        // let cipher_suites = raw[offset..(offset + cipher_suites_length)]
-        //     .chunks(2)
-        //     .map(|x| CipherSuite {
-        //         aead_algorithm: x[0],
-        //         hkdf_hash: x[1],
-        //     })
-        //     .collect();
-        // offset += cipher_suites_length;
 
         let (size, cipher_suites_raw) = opaque_vec_16(&raw[offset..]);
         offset += size;
@@ -64,7 +51,7 @@ impl ClientHello {
         let mut parsed_length = 0;
         let mut extensions = Vec::new();
         while parsed_length < total_length {
-            match Extension::from_raw(&extensions_raw[parsed_length..]) {
+            match Extension::from_raw(&extensions_raw[parsed_length..], ExtParent::Client) {
                 Ok(ext) => {
                     parsed_length += ext.size();
                     extensions.push(ext);
@@ -77,7 +64,7 @@ impl ClientHello {
         }
 
         if parsed_length != total_length {
-            tracing::error!("Unparsed extensions parts left ({parsed_length}/{total_length})");
+            tracing::error!("Unparsed extension parts left ({parsed_length}/{total_length})");
         }
 
         Ok(Self {
