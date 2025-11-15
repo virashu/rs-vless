@@ -44,6 +44,12 @@ impl ServerHello {
         res.extend((self.extensions.len() as u16).to_be_bytes());
         res.extend(self.extensions.as_ref());
 
+        let length = res.len().to_be_bytes();
+        res.insert(0, 1);
+        res.insert(1, length[1]);
+        res.insert(2, length[2]);
+        res.insert(3, length[3]);
+
         res.into_boxed_slice()
     }
 }

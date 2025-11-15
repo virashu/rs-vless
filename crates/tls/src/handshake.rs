@@ -28,7 +28,7 @@ impl Handshake {
         let length = u32::from_be_bytes([0, raw[1], raw[2], raw[3]]);
 
         Ok(match msg_type {
-            1 => Self::ClientHello(ClientHello::from_raw(&raw[4..])?),
+            1 => Self::ClientHello(ClientHello::from_raw(&raw[1..])?),
             2 => Self::ServerHello(todo!()),
             4 => Self::NewSessionTicket,
             5 => Self::EndOfEarlyData,

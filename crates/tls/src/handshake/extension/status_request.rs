@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use crate::util::opaque_vec_16;
+use crate::{parse::Parse, util::opaque_vec_16};
 
 #[derive(Debug)]
 pub struct StatusRequest {
@@ -10,8 +10,8 @@ pub struct StatusRequest {
     pub extensions: Box<[u8]>,
 }
 
-impl StatusRequest {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+impl Parse for StatusRequest {
+    fn parse(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[0], raw[1]]);
 
         let status_type = raw[2];
@@ -33,7 +33,7 @@ impl StatusRequest {
         })
     }
 
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         self.length as usize + 2
     }
 }

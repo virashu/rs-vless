@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::util::opaque_vec_8;
+use crate::parse::{DataVec8, Parse};
 
 #[derive(Debug)]
 pub enum SupportedVersionsContent {
@@ -15,27 +15,6 @@ pub struct SupportedVersions {
 }
 
 impl SupportedVersions {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
-        let length = u16::from_be_bytes([raw[0], raw[1]]);
-
-        let content = if length == 2 {
-            SupportedVersionsContent::Server(u16::from_be_bytes([raw[2], raw[3]]))
-        } else {
-            let (_, data) = opaque_vec_8(&raw[2..]);
-            SupportedVersionsContent::Client(
-                data.chunks_exact(2)
-                    .map(|c| u16::from_be_bytes([c[0], c[1]]))
-                    .collect(),
-            )
-        };
-
-        Ok(Self { length, content })
-    }
-
-    pub fn size(&self) -> usize {
-        self.length as usize + 2
-    }
-
     pub fn server(&self) -> Option<u16> {
         match self.content {
             SupportedVersionsContent::Server(v) => Some(v),
@@ -48,5 +27,24 @@ impl SupportedVersions {
             SupportedVersionsContent::Client(ref vs) => Some(vs.as_ref()),
             SupportedVersionsContent::Server(_) => None,
         }
+    }
+}
+
+impl Parse for SupportedVersions {
+    fn parse(raw: &[u8]) -> Result<Self> {
+        let length = u16::from_be_bytes([raw[0], raw[1]]);
+
+        let content = if length == 2 {
+            SupportedVersionsContent::Server(u16::from_be_bytes([raw[2], raw[3]]))
+        } else {
+            let data = DataVec8::<u16>::parse(&raw[2..])?.into_inner();
+            SupportedVersionsContent::Client(data)
+        };
+
+        Ok(Self { length, content })
+    }
+
+    fn size(&self) -> usize {
+        self.length as usize + 2
     }
 }

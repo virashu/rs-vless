@@ -1,36 +1,48 @@
 use anyhow::Result;
 
-use crate::util::{opaque_vec_8, opaque_vec_16};
+use crate::{
+    parse::{DataVec16, Parse},
+    util::opaque_vec_8,
+};
+
+#[derive(Debug)]
+pub struct ProtocolName {
+    size: usize,
+
+    pub data: Box<[u8]>,
+}
+
+impl Parse for ProtocolName {
+    fn parse(raw: &[u8]) -> Result<Self> {
+        let (size, data) = opaque_vec_8(raw);
+        Ok(Self { size, data })
+    }
+
+    fn size(&self) -> usize {
+        self.size
+    }
+}
 
 #[derive(Debug)]
 pub struct ProtocolNameList {
     length: u16,
 
-    pub protocol_name_list: Box<[Box<[u8]>]>,
+    pub protocol_name_list: Box<[ProtocolName]>,
 }
 
-impl ProtocolNameList {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+impl Parse for ProtocolNameList {
+    fn parse(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[0], raw[1]]);
 
-        let (_, data) = opaque_vec_16(&raw[2..]);
-        let total_length = data.len();
-        let mut parsed_length = 0;
-        let mut protocol_name_list = Vec::new();
-        while parsed_length < total_length {
-            let (size, data) = opaque_vec_8(&data[parsed_length..]);
-            parsed_length += size;
-
-            protocol_name_list.push(data);
-        }
+        let protocol_name_list = DataVec16::<ProtocolName>::parse(&raw[2..])?.into_inner();
 
         Ok(Self {
             length,
-            protocol_name_list: protocol_name_list.into_boxed_slice(),
+            protocol_name_list,
         })
     }
 
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         self.length as usize + 2
     }
 }

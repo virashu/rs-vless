@@ -1,5 +1,6 @@
 pub mod handshake;
 pub(crate) mod macros;
+pub(crate) mod parse;
 pub(crate) mod util;
 
 #[derive(Debug)]

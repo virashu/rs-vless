@@ -2,7 +2,8 @@ use anyhow::{Result, bail};
 
 use crate::{
     CipherSuite,
-    handshake::extension::Extension,
+    handshake::extension::ExtensionClientHello,
+    parse::Parse,
     util::{opaque_vec_8, opaque_vec_16},
 };
 
@@ -14,19 +15,21 @@ pub struct ClientHello {
     pub legacy_session_id: Box<[u8]>,
     pub cipher_suites: Box<[CipherSuite]>,
     pub legacy_compression_methods: Box<[u8]>,
-    pub extensions: Box<[Extension]>,
+    pub extensions: Box<[ExtensionClientHello]>,
 }
 
 impl ClientHello {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
-        let legacy_version = u16::from_be_bytes([raw[0], raw[1]]);
+        let length = u32::from_be_bytes([0, raw[0], raw[1], raw[2]]);
+
+        let legacy_version = u16::from_be_bytes([raw[3], raw[4]]);
         if legacy_version != 0x0303 {
             bail!("Invalid legacy version: {legacy_version} (should be equal 0x0303)");
         }
 
-        let random = Box::new(raw[2..(2 + 32)].try_into()?);
+        let random = Box::new(raw[5..(5 + 32)].try_into()?);
 
-        let mut offset: usize = 34;
+        let mut offset: usize = 5 + 32;
 
         let (size, legacy_session_id) = opaque_vec_8(&raw[offset..]);
         offset += size;
@@ -51,14 +54,15 @@ impl ClientHello {
         let mut parsed_length = 0;
         let mut extensions = Vec::new();
         while parsed_length < total_length {
-            match Extension::from_raw(&extensions_raw[parsed_length..], ExtParent::Client) {
+            match ExtensionClientHello::parse(&extensions_raw[parsed_length..]) {
                 Ok(ext) => {
                     parsed_length += ext.size();
                     extensions.push(ext);
                 }
                 Err(err) => {
-                    tracing::warn!("Failed to parse extension: {err}");
-                    parsed_length += Extension::size_raw(&extensions_raw[parsed_length..]);
+                    tracing::warn!("Failed to parse extension: {err:?}");
+                    parsed_length +=
+                        ExtensionClientHello::size_raw(&extensions_raw[parsed_length..]);
                 }
             }
         }

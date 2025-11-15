@@ -1,27 +1,9 @@
 use anyhow::Result;
 
-use crate::{macros::auto_try_from, util::opaque_vec_16};
-
-auto_try_from! {
-    #[repr(u16)]
-    #[allow(non_camel_case_types)]
-    #[derive(Debug)]
-    pub enum NamedGroup {
-        /* Elliptic Curve Groups (ECDHE) */
-        secp256r1 = 0x0017,
-        secp384r1 = 0x0018,
-        secp521r1 = 0x0019,
-        x25519 = 0x001D,
-        x448 = 0x001E,
-
-        /* Finite Field Groups (DHE) */
-        ffdhe2048 = 0x0100,
-        ffdhe3072 = 0x0101,
-        ffdhe4096 = 0x0102,
-        ffdhe6144 = 0x0103,
-        ffdhe8192 = 0x0104,
-    }
-}
+use crate::{
+    handshake::extension::named_group::NamedGroup,
+    parse::{DataVec16, Parse},
+};
 
 #[derive(Debug)]
 pub struct SupportedGroups {
@@ -30,15 +12,10 @@ pub struct SupportedGroups {
     pub named_group_list: Box<[NamedGroup]>,
 }
 
-impl SupportedGroups {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+impl Parse for SupportedGroups {
+    fn parse(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[0], raw[1]]);
-
-        let (_, data) = opaque_vec_16(&raw[2..]);
-        let named_group_list = data
-            .chunks_exact(2)
-            .filter_map(|c| NamedGroup::try_from(u16::from_be_bytes([c[0], c[1]])).ok())
-            .collect();
+        let named_group_list = DataVec16::<NamedGroup>::parse(&raw[2..])?.into_inner();
 
         Ok(Self {
             length,
@@ -46,7 +23,7 @@ impl SupportedGroups {
         })
     }
 
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         self.length as usize + 2
     }
 }

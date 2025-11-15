@@ -1,41 +1,54 @@
 use anyhow::Result;
 
-use crate::handshake::extension::{ExtParent, supported_groups::NamedGroup};
+use crate::{
+    handshake::extension::named_group::NamedGroup,
+    parse::{DataVec16, Parse},
+};
 
 #[derive(Debug)]
 pub struct KeyShareEntry {
     pub group: NamedGroup,
-    // u16 length
+
+    size: usize,
     pub key_exchange: Box<[u8]>,
 }
 
-#[derive(Debug)]
-pub enum KeyShareContent {
-    Client(
-        // u16 length
-        Box<[KeyShareEntry]>,
-    ),
-    Server(KeyShareEntry),
-    Retry(NamedGroup),
+impl Parse for KeyShareEntry {
+    fn parse(raw: &[u8]) -> Result<Self> {
+        let group = NamedGroup::parse(&raw[0..2])?;
+        let key_exchange = DataVec16::<u8>::parse(&raw[2..])?;
+
+        Ok(Self {
+            group,
+            size: key_exchange.size(),
+            key_exchange: key_exchange.into_inner(),
+        })
+    }
+
+    fn size(&self) -> usize {
+        self.size + 2
+    }
 }
 
 #[derive(Debug)]
-pub struct KeyShare {
+pub struct KeyShareClientHello {
     length: u16,
 
-    content: KeyShareContent,
+    pub client_shares: Box<[KeyShareEntry]>,
 }
 
-impl KeyShare {
-    pub fn from_raw(raw: &[u8], source: ExtParent) -> Result<Self> {
+impl Parse for KeyShareClientHello {
+    fn parse(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[0], raw[1]]);
+        let client_shares = DataVec16::<KeyShareEntry>::parse(&raw[2..])?.into_inner();
 
-        let content = match source {
-            ExtParent::Server => KeyShareContent::Server(todo!()),
-            ExtParent::Client => KeyShareContent::Client(todo!()),
-            ExtParent::Retry => KeyShareContent::Retry(todo!()),
-        };
+        Ok(Self {
+            length,
+            client_shares,
+        })
+    }
 
-        Ok(Self { length, content })
+    fn size(&self) -> usize {
+        self.length as usize + 2
     }
 }
