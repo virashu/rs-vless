@@ -44,7 +44,7 @@ pub enum Extension {
 
 impl Extension {
     pub fn size_raw(raw: &[u8]) -> usize {
-        u16::from_be_bytes([raw[3], raw[4]]) as usize + 2
+        u16::from_be_bytes([raw[2], raw[3]]) as usize + 4
     }
 
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
