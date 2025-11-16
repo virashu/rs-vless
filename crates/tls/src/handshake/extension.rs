@@ -2,6 +2,8 @@ mod ec_point_formats;
 mod key_share;
 mod named_group;
 mod protocol_name_list;
+mod psk_key_exchange_modes;
+mod renegotiation_info;
 mod server_name;
 mod signature_algorithms;
 mod signature_scheme;
@@ -12,6 +14,8 @@ mod supported_versions;
 pub use ec_point_formats::EcPointFormats;
 pub use key_share::KeyShareClientHello;
 pub use protocol_name_list::ProtocolNameList;
+pub use psk_key_exchange_modes::PskKeyExchangeModes;
+pub use renegotiation_info::RenegotiationInfo;
 pub use server_name::ServerName;
 pub use signature_algorithms::SignatureAlgorithms;
 pub use status_request::StatusRequest;
@@ -22,15 +26,8 @@ use anyhow::{Context, Result, bail};
 
 use crate::parse::Parse;
 
-#[derive(Clone, Copy, Debug)]
-pub enum ExtParent {
-    Server,
-    Client,
-    Retry,
-}
-
 #[derive(Debug)]
-pub enum ExtensionClientHello {
+pub enum ExtensionClientHelloContent {
     /// ID: 0
     ServerName(ServerName),
     /// ID: 5
@@ -50,22 +47,22 @@ pub enum ExtensionClientHello {
     /// ID: 43
     SupportedVersions(SupportedVersions),
     /// ID: 45
-    PskKeyExchangeModes(/* TODO */),
+    PskKeyExchangeModes(PskKeyExchangeModes),
     /// ID: 49
     PostHandshakeAuth(/* TODO */),
     /// ID: 51
     KeyShare(KeyShareClientHello),
     /// ID: 65281
-    RenegotiationInfo(/* TODO */),
+    RenegotiationInfo(RenegotiationInfo),
 }
 
-impl ExtensionClientHello {
+impl ExtensionClientHelloContent {
     pub fn size_raw(raw: &[u8]) -> usize {
         u16::from_be_bytes([raw[2], raw[3]]) as usize + 4
     }
 }
 
-impl Parse for ExtensionClientHello {
+impl Parse for ExtensionClientHelloContent {
     fn parse(raw: &[u8]) -> Result<Self> {
         let extension_type = u16::from_be_bytes([raw[0], raw[1]]);
         let data = &raw[2..];
@@ -84,8 +81,11 @@ impl Parse for ExtensionClientHello {
             23 => Self::ExtendedMainSecret,
             35 => Self::SessionTicket(),
             43 => Self::SupportedVersions(SupportedVersions::parse(data)?),
+            45 => Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?),
             // 49 => Self::PostHandshakeAuth(),
             51 => Self::KeyShare(KeyShareClientHello::parse(data)?),
+            65281 => Self::RenegotiationInfo(RenegotiationInfo::parse(data)?),
+
             _ => bail!("Unknown extension type: {extension_type}"),
         })
     }
@@ -101,13 +101,22 @@ impl Parse for ExtensionClientHello {
             Self::EcPointFormats(e) => e.size(),
             Self::ApplicationLayerProtocolNegotiation(e) => e.size(),
             Self::KeyShare(e) => e.size(),
+            Self::RenegotiationInfo(e) => e.size(),
+            Self::PskKeyExchangeModes(e) => e.size(),
 
-            Self::SessionTicket() => 2,
+            // Empty indicator
             Self::ExtendedMainSecret => 2,
 
-            Self::PskKeyExchangeModes() => todo!(),
+            Self::SessionTicket() => 2,
+
             Self::PostHandshakeAuth() => todo!(),
-            Self::RenegotiationInfo() => todo!(),
         }
     }
 }
+
+// #[derive(Debug)]
+// pub struct ExtensionClientHello {
+//     length: u16,
+
+//     pub content: ExtensionClientHelloContent,
+// }

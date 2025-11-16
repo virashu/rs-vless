@@ -2,12 +2,10 @@ use anyhow::{Result, bail};
 
 use crate::{
     CipherSuite,
-    handshake::extension::ExtensionClientHello,
+    handshake::extension::ExtensionClientHelloContent,
     parse::Parse,
     util::{opaque_vec_8, opaque_vec_16},
 };
-
-use super::extension::ExtParent;
 
 #[derive(Debug)]
 pub struct ClientHello {
@@ -15,7 +13,7 @@ pub struct ClientHello {
     pub legacy_session_id: Box<[u8]>,
     pub cipher_suites: Box<[CipherSuite]>,
     pub legacy_compression_methods: Box<[u8]>,
-    pub extensions: Box<[ExtensionClientHello]>,
+    pub extensions: Box<[ExtensionClientHelloContent]>,
 }
 
 impl ClientHello {
@@ -54,7 +52,7 @@ impl ClientHello {
         let mut parsed_length = 0;
         let mut extensions = Vec::new();
         while parsed_length < total_length {
-            match ExtensionClientHello::parse(&extensions_raw[parsed_length..]) {
+            match ExtensionClientHelloContent::parse(&extensions_raw[parsed_length..]) {
                 Ok(ext) => {
                     parsed_length += ext.size();
                     extensions.push(ext);
@@ -62,7 +60,7 @@ impl ClientHello {
                 Err(err) => {
                     tracing::warn!("Failed to parse extension: {err:?}");
                     parsed_length +=
-                        ExtensionClientHello::size_raw(&extensions_raw[parsed_length..]);
+                        ExtensionClientHelloContent::size_raw(&extensions_raw[parsed_length..]);
                 }
             }
         }

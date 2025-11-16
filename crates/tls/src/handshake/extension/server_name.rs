@@ -15,6 +15,6 @@ impl Parse for ServerName {
     }
 
     fn size(&self) -> usize {
-        self.length as usize
+        self.length as usize + 2
     }
 }
