@@ -14,7 +14,7 @@ fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind("0.0.0.0:3001")?;
 
     for mut conn in listener.incoming().filter_map(Result::ok) {
-        let mut buf = [0; 1000];
+        let mut buf = [0; 1800];
         let n = conn.read(&mut buf)?;
 
         println!("Read {n} bytes");
