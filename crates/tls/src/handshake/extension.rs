@@ -25,7 +25,12 @@ pub use supported_versions::{SupportedVersionsClientHello, SupportedVersionsServ
 
 use anyhow::{Context, Result, bail};
 
-use crate::{handshake::extension::pre_shared_key::PreSharedKeyExtensionServerHello, parse::Parse};
+use crate::{
+    handshake::extension::pre_shared_key::{
+        PreSharedKeyExtensionClientHello, PreSharedKeyExtensionServerHello,
+    },
+    parse::Parse,
+};
 
 #[derive(Debug)]
 pub enum ClientHelloExtensionContent {
@@ -45,6 +50,8 @@ pub enum ClientHelloExtensionContent {
     ExtendedMainSecret,
     /// ID: 35
     SessionTicket(/* TODO */),
+    /// ID: 41
+    PreSharedKey(PreSharedKeyExtensionClientHello),
     /// ID: 43
     SupportedVersions(SupportedVersionsClientHello),
     /// ID: 45
@@ -75,6 +82,7 @@ impl ClientHelloExtensionContent {
             ),
             23 => Self::ExtendedMainSecret,
             35 => Self::SessionTicket(),
+            41 => Self::PreSharedKey(PreSharedKeyExtensionClientHello::parse(data)?),
             43 => Self::SupportedVersions(SupportedVersionsClientHello::parse(data)?),
             45 => Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?),
             49 => Self::PostHandshakeAuth,
