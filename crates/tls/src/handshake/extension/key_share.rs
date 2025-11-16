@@ -37,7 +37,7 @@ pub struct KeyShareClientHello {
 
 impl KeyShareClientHello {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let client_shares = DataVec16::<KeyShareEntry>::parse(&raw[2..])?.into_inner();
+        let client_shares = DataVec16::<KeyShareEntry>::parse(raw)?.into_inner();
 
         Ok(Self { client_shares })
     }

@@ -27,7 +27,7 @@ impl Parse for PskIdentity {
     }
 }
 
-type PskBinderEntry = Box<[u8]>;
+pub type PskBinderEntry = Box<[u8]>;
 
 #[derive(Clone, Debug)]
 pub struct PreSharedKeyExtensionClientHello {
@@ -37,8 +37,8 @@ pub struct PreSharedKeyExtensionClientHello {
 
 impl PreSharedKeyExtensionClientHello {
     pub fn parse(raw: &[u8]) -> anyhow::Result<Self> {
-        let identities = DataVec16::<PskIdentity>::parse(&raw[2..])?;
-        let binders = DataVec16::<DataVec8<u8>>::parse(&raw[(2 + identities.size())..])?;
+        let identities = DataVec16::<PskIdentity>::parse(raw)?;
+        let binders = DataVec16::<DataVec8<u8>>::parse(&raw[identities.size()..])?;
 
         Ok(Self {
             identities: identities.into_inner(),
@@ -58,7 +58,7 @@ pub struct PreSharedKeyExtensionServerHello {
 
 impl PreSharedKeyExtensionServerHello {
     pub fn parse(raw: &[u8]) -> anyhow::Result<Self> {
-        let selected_identity = u16::from_be_bytes([raw[2], raw[3]]);
+        let selected_identity = u16::from_be_bytes([raw[0], raw[1]]);
 
         Ok(Self { selected_identity })
     }

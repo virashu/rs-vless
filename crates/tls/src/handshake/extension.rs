@@ -60,7 +60,7 @@ pub enum ClientHelloExtensionContent {
 impl ClientHelloExtensionContent {
     fn parse(raw: &[u8]) -> Result<Self> {
         let extension_type = u16::from_be_bytes([raw[0], raw[1]]);
-        let data = &raw[2..];
+        let data = &raw[4..];
 
         Ok(match extension_type {
             0 => Self::ServerName(ServerNameList::parse(data).context("ServerName")?),

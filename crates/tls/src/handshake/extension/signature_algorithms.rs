@@ -13,7 +13,7 @@ pub struct SignatureAlgorithms {
 impl SignatureAlgorithms {
     pub fn parse(raw: &[u8]) -> Result<Self> {
         let supported_signature_algorithms =
-            DataVec16::<SignatureScheme>::parse(&raw[2..])?.into_inner();
+            DataVec16::<SignatureScheme>::parse(raw)?.into_inner();
 
         Ok(Self {
             supported_signature_algorithms,

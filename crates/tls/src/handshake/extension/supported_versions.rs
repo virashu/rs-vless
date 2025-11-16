@@ -9,7 +9,7 @@ pub struct SupportedVersionsClientHello {
 
 impl SupportedVersionsClientHello {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let versions = DataVec8::<u16>::parse(&raw[2..])?.into_inner();
+        let versions = DataVec8::<u16>::parse(raw)?.into_inner();
 
         Ok(Self { versions })
     }
@@ -22,7 +22,7 @@ pub struct SupportedVersionsServerHello {
 
 impl SupportedVersionsServerHello {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let selected_version = u16::from_be_bytes([raw[2], raw[3]]);
+        let selected_version = u16::from_be_bytes([raw[0], raw[1]]);
 
         Ok(Self { selected_version })
     }

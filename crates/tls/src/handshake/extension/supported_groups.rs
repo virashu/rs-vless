@@ -12,7 +12,7 @@ pub struct SupportedGroups {
 
 impl SupportedGroups {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let named_group_list = DataVec16::<NamedGroup>::parse(&raw[2..])?.into_inner();
+        let named_group_list = DataVec16::<NamedGroup>::parse(raw)?.into_inner();
 
         Ok(Self { named_group_list })
     }

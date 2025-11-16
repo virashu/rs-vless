@@ -32,7 +32,7 @@ pub struct EcPointFormats {
 
 impl EcPointFormats {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let ec_point_format_list = DataVec8::<EcPointFormat>::parse(&raw[2..])?.into_inner();
+        let ec_point_format_list = DataVec8::<EcPointFormat>::parse(raw)?.into_inner();
 
         Ok(Self {
             ec_point_format_list,

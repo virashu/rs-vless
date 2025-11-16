@@ -9,7 +9,7 @@ pub struct RenegotiationInfo {
 
 impl RenegotiationInfo {
     pub fn parse(raw: &[u8]) -> anyhow::Result<Self> {
-        let (_, renegotiated_connection) = opaque_vec_8(&raw[2..]);
+        let (_, renegotiated_connection) = opaque_vec_8(raw);
 
         Ok(Self {
             renegotiated_connection,

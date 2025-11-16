@@ -30,7 +30,7 @@ pub struct ProtocolNameList {
 
 impl ProtocolNameList {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let protocol_name_list = DataVec16::<ProtocolName>::parse(&raw[2..])?.into_inner();
+        let protocol_name_list = DataVec16::<ProtocolName>::parse(raw)?.into_inner();
 
         Ok(Self { protocol_name_list })
     }

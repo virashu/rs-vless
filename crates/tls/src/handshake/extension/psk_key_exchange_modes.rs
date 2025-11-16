@@ -32,7 +32,7 @@ pub struct PskKeyExchangeModes {
 
 impl PskKeyExchangeModes {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let ke_modes = DataVec8::<PskKeyExchangeMode>::parse(&raw[2..])?.into_inner();
+        let ke_modes = DataVec8::<PskKeyExchangeMode>::parse(raw)?.into_inner();
 
         Ok(Self { ke_modes })
     }

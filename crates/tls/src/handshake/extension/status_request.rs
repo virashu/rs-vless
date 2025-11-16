@@ -10,12 +10,12 @@ pub struct StatusRequest {
 
 impl StatusRequest {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let status_type = raw[2];
+        let status_type = raw[0];
         if status_type != 1 {
             bail!("Status type is not 1");
         }
 
-        let mut offset = 3;
+        let mut offset = 1;
 
         let (size, responder_id) = opaque_vec_16(&raw[offset..]);
         offset += size;
