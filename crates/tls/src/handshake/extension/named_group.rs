@@ -1,8 +1,8 @@
 use anyhow::Result;
 
-use crate::{macros::auto_try_from, parse::Parse};
+use crate::{macros::auto_from, parse::Parse};
 
-auto_try_from! {
+auto_from! {
     #[repr(u16)]
     #[allow(non_camel_case_types)]
     #[derive(Debug)]
@@ -25,7 +25,7 @@ auto_try_from! {
 
 impl Parse for NamedGroup {
     fn parse(raw: &[u8]) -> Result<Self> {
-        Self::try_from(u16::from_be_bytes([raw[0], raw[1]]))
+        Ok(Self::from(u16::from_be_bytes([raw[0], raw[1]])))
     }
 
     fn size(&self) -> usize {
