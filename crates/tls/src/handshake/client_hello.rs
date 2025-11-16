@@ -2,22 +2,24 @@ use anyhow::{Result, bail};
 
 use crate::{
     CipherSuite,
-    handshake::extension::ExtensionClientHelloContent,
+    handshake::extension::ClientHelloExtension,
     parse::Parse,
     util::{opaque_vec_8, opaque_vec_16},
 };
 
 #[derive(Debug)]
 pub struct ClientHello {
+    length: u32,
+
     pub random: Box<[u8; 32]>,
     pub legacy_session_id: Box<[u8]>,
     pub cipher_suites: Box<[CipherSuite]>,
     pub legacy_compression_methods: Box<[u8]>,
-    pub extensions: Box<[ExtensionClientHelloContent]>,
+    pub extensions: Box<[ClientHelloExtension]>,
 }
 
-impl ClientHello {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+impl Parse for ClientHello {
+    fn parse(raw: &[u8]) -> Result<Self> {
         let length = u32::from_be_bytes([0, raw[0], raw[1], raw[2]]);
 
         let legacy_version = u16::from_be_bytes([raw[3], raw[4]]);
@@ -52,7 +54,7 @@ impl ClientHello {
         let mut parsed_length = 0;
         let mut extensions = Vec::new();
         while parsed_length < total_length {
-            match ExtensionClientHelloContent::parse(&extensions_raw[parsed_length..]) {
+            match ClientHelloExtension::parse(&extensions_raw[parsed_length..]) {
                 Ok(ext) => {
                     parsed_length += ext.size();
                     extensions.push(ext);
@@ -60,7 +62,7 @@ impl ClientHello {
                 Err(err) => {
                     tracing::warn!("Failed to parse extension: {err:?}");
                     parsed_length +=
-                        ExtensionClientHelloContent::size_raw(&extensions_raw[parsed_length..]);
+                        ClientHelloExtension::size_raw(&extensions_raw[parsed_length..]);
                 }
             }
         }
@@ -70,11 +72,16 @@ impl ClientHello {
         }
 
         Ok(Self {
+            length,
             random,
             legacy_session_id,
             cipher_suites,
             legacy_compression_methods,
             extensions: extensions.into_boxed_slice(),
         })
+    }
+
+    fn size(&self) -> usize {
+        self.length as usize + 3
     }
 }

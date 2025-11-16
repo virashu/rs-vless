@@ -1,13 +1,11 @@
-use std::sync::Arc;
-
-use crate::CipherSuite;
+use crate::{CipherSuite, handshake::extension::ServerHelloExtension};
 
 #[derive(Debug)]
 pub struct ServerHello {
-    pub random: Arc<[u8; 32]>,
-    pub legacy_session_id_echo: Arc<[u8]>,
+    pub random: Box<[u8; 32]>,
+    pub legacy_session_id_echo: Box<[u8]>,
     pub cipher_suite: CipherSuite,
-    pub extensions: Arc<[u8]>,
+    pub extensions: Box<[ServerHelloExtension]>,
 }
 
 impl ServerHello {
@@ -15,13 +13,13 @@ impl ServerHello {
         random: &[u8; 32],
         legacy_session_id_echo: &[u8],
         cipher_suite: CipherSuite,
-        extensions: &[u8],
+        extensions: &[ServerHelloExtension],
     ) -> Self {
         Self {
-            random: Arc::from(*random),
-            legacy_session_id_echo: Arc::from(legacy_session_id_echo),
+            random: Box::from(*random),
+            legacy_session_id_echo: Box::from(legacy_session_id_echo),
             cipher_suite,
-            extensions: Arc::from(extensions),
+            extensions: Box::from(extensions.to_owned()),
         }
     }
 
@@ -41,8 +39,13 @@ impl ServerHello {
 
         res.push(0);
 
-        res.extend((self.extensions.len() as u16).to_be_bytes());
-        res.extend(self.extensions.as_ref());
+        let extensions_length = self.extensions.iter().fold(0, |acc, e| acc + e.length());
+        res.extend(extensions_length.to_be_bytes());
+        res.extend(
+            self.extensions
+                .iter()
+                .flat_map(ServerHelloExtension::to_raw),
+        );
 
         let length = res.len().to_be_bytes();
         res.insert(0, 1);

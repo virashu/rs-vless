@@ -5,7 +5,7 @@ use crate::{macros::auto_from, parse::Parse};
 auto_from! {
     #[repr(u16)]
     #[allow(non_camel_case_types)]
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     pub enum NamedGroup {
         /* Elliptic Curve Groups (ECDHE) */
         secp256r1 = 0x0017,

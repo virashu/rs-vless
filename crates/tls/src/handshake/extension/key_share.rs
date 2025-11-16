@@ -5,7 +5,7 @@ use crate::{
     parse::{DataVec16, Parse},
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct KeyShareEntry {
     pub group: NamedGroup,
 
@@ -30,25 +30,15 @@ impl Parse for KeyShareEntry {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct KeyShareClientHello {
-    length: u16,
-
     pub client_shares: Box<[KeyShareEntry]>,
 }
 
-impl Parse for KeyShareClientHello {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        let length = u16::from_be_bytes([raw[0], raw[1]]);
+impl KeyShareClientHello {
+    pub fn parse(raw: &[u8]) -> Result<Self> {
         let client_shares = DataVec16::<KeyShareEntry>::parse(&raw[2..])?.into_inner();
 
-        Ok(Self {
-            length,
-            client_shares,
-        })
-    }
-
-    fn size(&self) -> usize {
-        self.length as usize + 2
+        Ok(Self { client_shares })
     }
 }

@@ -1,6 +1,7 @@
 mod ec_point_formats;
 mod key_share;
 mod named_group;
+mod pre_shared_key;
 mod protocol_name_list;
 mod psk_key_exchange_modes;
 mod renegotiation_info;
@@ -16,20 +17,20 @@ pub use key_share::KeyShareClientHello;
 pub use protocol_name_list::ProtocolNameList;
 pub use psk_key_exchange_modes::PskKeyExchangeModes;
 pub use renegotiation_info::RenegotiationInfo;
-pub use server_name::ServerName;
+pub use server_name::ServerNameList;
 pub use signature_algorithms::SignatureAlgorithms;
 pub use status_request::StatusRequest;
 pub use supported_groups::SupportedGroups;
-pub use supported_versions::SupportedVersions;
+pub use supported_versions::{SupportedVersionsClientHello, SupportedVersionsServerHello};
 
 use anyhow::{Context, Result, bail};
 
-use crate::parse::Parse;
+use crate::{handshake::extension::pre_shared_key::PreSharedKeyExtensionServerHello, parse::Parse};
 
 #[derive(Debug)]
-pub enum ExtensionClientHelloContent {
+pub enum ClientHelloExtensionContent {
     /// ID: 0
-    ServerName(ServerName),
+    ServerName(ServerNameList),
     /// ID: 5
     StatusRequest(StatusRequest),
     /// ID: 10
@@ -45,30 +46,24 @@ pub enum ExtensionClientHelloContent {
     /// ID: 35
     SessionTicket(/* TODO */),
     /// ID: 43
-    SupportedVersions(SupportedVersions),
+    SupportedVersions(SupportedVersionsClientHello),
     /// ID: 45
     PskKeyExchangeModes(PskKeyExchangeModes),
     /// ID: 49
-    PostHandshakeAuth(/* TODO */),
+    PostHandshakeAuth,
     /// ID: 51
     KeyShare(KeyShareClientHello),
     /// ID: 65281
     RenegotiationInfo(RenegotiationInfo),
 }
 
-impl ExtensionClientHelloContent {
-    pub fn size_raw(raw: &[u8]) -> usize {
-        u16::from_be_bytes([raw[2], raw[3]]) as usize + 4
-    }
-}
-
-impl Parse for ExtensionClientHelloContent {
+impl ClientHelloExtensionContent {
     fn parse(raw: &[u8]) -> Result<Self> {
         let extension_type = u16::from_be_bytes([raw[0], raw[1]]);
         let data = &raw[2..];
 
         Ok(match extension_type {
-            0 => Self::ServerName(ServerName::parse(data).context("ServerName")?),
+            0 => Self::ServerName(ServerNameList::parse(data).context("ServerName")?),
             5 => Self::StatusRequest(StatusRequest::parse(data).context("StatusRequest")?),
             10 => Self::SupportedGroups(SupportedGroups::parse(data).context("SupportedGroups")?),
             11 => Self::EcPointFormats(EcPointFormats::parse(data).context("EcPointFormats")?),
@@ -80,43 +75,70 @@ impl Parse for ExtensionClientHelloContent {
             ),
             23 => Self::ExtendedMainSecret,
             35 => Self::SessionTicket(),
-            43 => Self::SupportedVersions(SupportedVersions::parse(data)?),
+            43 => Self::SupportedVersions(SupportedVersionsClientHello::parse(data)?),
             45 => Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?),
-            // 49 => Self::PostHandshakeAuth(),
+            49 => Self::PostHandshakeAuth,
             51 => Self::KeyShare(KeyShareClientHello::parse(data)?),
             65281 => Self::RenegotiationInfo(RenegotiationInfo::parse(data)?),
 
             _ => bail!("Unknown extension type: {extension_type}"),
         })
     }
+}
 
-    #[allow(clippy::match_same_arms)]
-    fn size(&self) -> usize {
-        2 + match self {
-            Self::ServerName(e) => e.size(),
-            Self::StatusRequest(e) => e.size(),
-            Self::SupportedGroups(e) => e.size(),
-            Self::SignatureAlgorithms(e) => e.size(),
-            Self::SupportedVersions(e) => e.size(),
-            Self::EcPointFormats(e) => e.size(),
-            Self::ApplicationLayerProtocolNegotiation(e) => e.size(),
-            Self::KeyShare(e) => e.size(),
-            Self::RenegotiationInfo(e) => e.size(),
-            Self::PskKeyExchangeModes(e) => e.size(),
+#[derive(Debug)]
+pub struct ClientHelloExtension {
+    length: u16,
 
-            // Empty indicator
-            Self::ExtendedMainSecret => 2,
+    pub content: ClientHelloExtensionContent,
+}
 
-            Self::SessionTicket() => 2,
-
-            Self::PostHandshakeAuth() => todo!(),
-        }
+impl ClientHelloExtension {
+    pub fn size_raw(raw: &[u8]) -> usize {
+        u16::from_be_bytes([raw[2], raw[3]]) as usize + 4
     }
 }
 
-// #[derive(Debug)]
-// pub struct ExtensionClientHello {
-//     length: u16,
+impl Parse for ClientHelloExtension {
+    fn parse(raw: &[u8]) -> Result<Self> {
+        let length = u16::from_be_bytes([raw[2], raw[3]]);
+        let content = ClientHelloExtensionContent::parse(raw)?;
 
-//     pub content: ExtensionClientHelloContent,
-// }
+        Ok(Self { length, content })
+    }
+
+    fn size(&self) -> usize {
+        self.length as usize + 4
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum ServerHelloExtensionContent {
+    /// ID: 41
+    PreSharedKey(PreSharedKeyExtensionServerHello),
+    /// ID: 43
+    SupportedVersions(SupportedVersionsServerHello),
+    /// ID: 51
+    KeyShare(KeyShareClientHello),
+}
+
+#[derive(Clone, Debug)]
+pub struct ServerHelloExtension {
+    length: u16,
+
+    pub content: ServerHelloExtensionContent,
+}
+
+impl ServerHelloExtension {
+    pub fn length(&self) -> u16 {
+        self.length
+    }
+
+    pub fn size(&self) -> usize {
+        todo!()
+    }
+
+    pub fn to_raw(&self) -> Box<[u8]> {
+        todo!()
+    }
+}

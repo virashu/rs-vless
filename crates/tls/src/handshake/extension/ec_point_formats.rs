@@ -27,24 +27,15 @@ impl Parse for EcPointFormat {
 
 #[derive(Debug)]
 pub struct EcPointFormats {
-    length: u16,
-
     pub ec_point_format_list: Box<[EcPointFormat]>,
 }
 
-impl Parse for EcPointFormats {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        let length = u16::from_be_bytes([raw[0], raw[1]]);
-
+impl EcPointFormats {
+    pub fn parse(raw: &[u8]) -> Result<Self> {
         let ec_point_format_list = DataVec8::<EcPointFormat>::parse(&raw[2..])?.into_inner();
 
         Ok(Self {
-            length,
             ec_point_format_list,
         })
-    }
-
-    fn size(&self) -> usize {
-        self.length as usize + 2
     }
 }

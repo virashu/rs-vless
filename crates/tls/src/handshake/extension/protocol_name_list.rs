@@ -25,24 +25,13 @@ impl Parse for ProtocolName {
 
 #[derive(Debug)]
 pub struct ProtocolNameList {
-    length: u16,
-
     pub protocol_name_list: Box<[ProtocolName]>,
 }
 
-impl Parse for ProtocolNameList {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        let length = u16::from_be_bytes([raw[0], raw[1]]);
-
+impl ProtocolNameList {
+    pub fn parse(raw: &[u8]) -> Result<Self> {
         let protocol_name_list = DataVec16::<ProtocolName>::parse(&raw[2..])?.into_inner();
 
-        Ok(Self {
-            length,
-            protocol_name_list,
-        })
-    }
-
-    fn size(&self) -> usize {
-        self.length as usize + 2
+        Ok(Self { protocol_name_list })
     }
 }

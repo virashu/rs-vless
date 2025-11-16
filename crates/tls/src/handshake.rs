@@ -4,7 +4,10 @@ pub mod server_hello;
 
 use anyhow::Result;
 
-use crate::handshake::{client_hello::ClientHello, server_hello::ServerHello};
+use crate::{
+    handshake::{client_hello::ClientHello, server_hello::ServerHello},
+    parse::Parse,
+};
 
 #[derive(Debug)]
 pub enum Handshake {
@@ -25,10 +28,11 @@ pub enum Handshake {
 impl Handshake {
     pub fn from_raw(raw: &[u8]) -> Result<Self> {
         let msg_type = raw[0];
-        let length = u32::from_be_bytes([0, raw[1], raw[2], raw[3]]);
+        let data = &raw[1..];
+        let _length = u32::from_be_bytes([0, raw[1], raw[2], raw[3]]);
 
         Ok(match msg_type {
-            1 => Self::ClientHello(ClientHello::from_raw(&raw[1..])?),
+            1 => Self::ClientHello(ClientHello::parse(data)?),
             2 => Self::ServerHello(todo!()),
             4 => Self::NewSessionTicket,
             5 => Self::EndOfEarlyData,
