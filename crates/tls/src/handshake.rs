@@ -33,7 +33,7 @@ impl Handshake {
 
         Ok(match msg_type {
             1 => Self::ClientHello(ClientHello::parse(data)?),
-            2 => Self::ServerHello(todo!()),
+            2 => todo!(),
             4 => Self::NewSessionTicket,
             5 => Self::EndOfEarlyData,
             8 => Self::EncryptedExtensions,

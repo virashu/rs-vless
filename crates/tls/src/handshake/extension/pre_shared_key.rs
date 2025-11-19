@@ -5,8 +5,8 @@ pub struct PskIdentity {
     size: usize,
 
     // u16
-    identity: Box<[u8]>,
-    obfuscated_ticket_age: u32,
+    pub identity: Box<[u8]>,
+    pub obfuscated_ticket_age: u32,
 }
 
 impl Parse for PskIdentity {
@@ -45,7 +45,7 @@ impl PreSharedKeyExtensionClientHello {
             binders: binders
                 .into_inner()
                 .into_iter()
-                .map(|b| b.into_inner())
+                .map(DataVec8::into_inner)
                 .collect(),
         })
     }

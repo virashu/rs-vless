@@ -30,8 +30,6 @@ use anyhow::{Context, Result, bail};
 
 use crate::parse::Parse;
 
-use extension_types::*;
-
 #[cfg_attr(feature = "trace", derive(strum_macros::AsRefStr))]
 #[derive(Debug)]
 pub enum ClientHelloExtensionContent {
@@ -76,33 +74,43 @@ impl ClientHelloExtensionContent {
         let data = &raw[4..];
 
         Ok(match extension_type {
-            SERVER_NAME => Self::ServerName(ServerNameList::parse(data).context("ServerName")?),
-            STATUS_REQUEST => {
+            extension_types::SERVER_NAME => {
+                Self::ServerName(ServerNameList::parse(data).context("ServerName")?)
+            }
+            extension_types::STATUS_REQUEST => {
                 Self::StatusRequest(StatusRequest::parse(data).context("StatusRequest")?)
             }
-            SUPPORTED_GROUPS => {
+            extension_types::SUPPORTED_GROUPS => {
                 Self::SupportedGroups(SupportedGroups::parse(data).context("SupportedGroups")?)
             }
-            EC_POINT_FORMATS => {
+            extension_types::EC_POINT_FORMATS => {
                 Self::EcPointFormats(EcPointFormats::parse(data).context("EcPointFormats")?)
             }
-            SIGNATURE_ALGORITHMS => Self::SignatureAlgorithms(
+            extension_types::SIGNATURE_ALGORITHMS => Self::SignatureAlgorithms(
                 SignatureAlgorithms::parse(data).context("SignatureAlgorigthms")?,
             ),
-            APPLICATION_LAYER_PROTOCOL_NEGOTIATION => Self::ApplicationLayerProtocolNegotiation(
-                ProtocolNameList::parse(data).context("ALPNegotiation")?,
-            ),
+            extension_types::APPLICATION_LAYER_PROTOCOL_NEGOTIATION => {
+                Self::ApplicationLayerProtocolNegotiation(
+                    ProtocolNameList::parse(data).context("ALPNegotiation")?,
+                )
+            }
             18 => Self::SignedSertificateTimestamp,
-            EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
-            SESSION_TICKET => Self::SessionTicket(),
-            PRE_SHARED_KEY => Self::PreSharedKey(PreSharedKeyExtensionClientHello::parse(data)?),
-            SUPPORTED_VERSIONS => {
+            extension_types::EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
+            extension_types::SESSION_TICKET => Self::SessionTicket(),
+            extension_types::PRE_SHARED_KEY => {
+                Self::PreSharedKey(PreSharedKeyExtensionClientHello::parse(data)?)
+            }
+            extension_types::SUPPORTED_VERSIONS => {
                 Self::SupportedVersions(SupportedVersionsClientHello::parse(data)?)
             }
-            PSK_KEY_EXCHANGE_MODES => Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?),
-            POST_HANDSHAKE_AUTH => Self::PostHandshakeAuth,
-            KEY_SHARE => Self::KeyShare(KeyShareClientHello::parse(data)?),
-            RENEGOTIATION_INFO => Self::RenegotiationInfo(RenegotiationInfo::parse(data)?),
+            extension_types::PSK_KEY_EXCHANGE_MODES => {
+                Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?)
+            }
+            extension_types::POST_HANDSHAKE_AUTH => Self::PostHandshakeAuth,
+            extension_types::KEY_SHARE => Self::KeyShare(KeyShareClientHello::parse(data)?),
+            extension_types::RENEGOTIATION_INFO => {
+                Self::RenegotiationInfo(RenegotiationInfo::parse(data)?)
+            }
 
             _ => bail!("Unknown extension type: {extension_type}"),
         })
@@ -172,17 +180,17 @@ impl ServerHelloExtension {
 
     pub fn to_raw(&self) -> Box<[u8]> {
         match &self.content {
-            ServerHelloExtensionContent::PreSharedKey(e) => {
+            ServerHelloExtensionContent::PreSharedKey(_e) => {
                 todo!()
             }
             ServerHelloExtensionContent::SupportedVersions(e) => [
-                SUPPORTED_VERSIONS.to_be_bytes(),
+                extension_types::SUPPORTED_VERSIONS.to_be_bytes(),
                 [0, 2],
                 e.selected_version.to_be_bytes(),
             ]
             .concat()
             .into(),
-            ServerHelloExtensionContent::KeyShare(e) => todo!(),
+            ServerHelloExtensionContent::KeyShare(_e) => todo!(),
         }
     }
 }

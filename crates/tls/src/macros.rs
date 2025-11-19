@@ -53,30 +53,3 @@ macro_rules! auto_from {
     }
 }
 pub(crate) use auto_from;
-
-macro_rules! auto_match {
-    ($vtype:ident, $(#[$meta:meta])* $vis:vis enum $name:ident {
-        $($(#[$vmeta1:meta])* $vname1:ident => $val:pat,)*
-        $($(#[$vmeta2:meta])* $vname2:ident,)*
-    }) => {
-        $(#[$meta])*
-        $vis enum $name {
-            $($(#[$vmeta1])* $vname1,)*
-            $($(#[$vmeta2])* $vname2,)*
-        }
-
-        impl std::convert::TryFrom<$vtype> for $name {
-            type Error = anyhow::Error;
-
-            fn try_from(v: $vtype) -> Result<Self, Self::Error> {
-                match v {
-                    $($val => Ok($name::$vname),)*
-
-                    #[allow(unreachable_patterns)]
-                    _ => Err(anyhow::anyhow!("Unknown value: 0x{v:x}")),
-                }
-            }
-        }
-    }
-}
-pub(crate) use auto_match;
