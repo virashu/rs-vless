@@ -1,3 +1,4 @@
+mod constants;
 mod ec_point_formats;
 mod key_share;
 mod named_group;
@@ -12,12 +13,14 @@ mod status_request;
 mod supported_groups;
 mod supported_versions;
 
+pub use constants::extension_types;
 pub use ec_point_formats::EcPointFormats;
 pub use key_share::KeyShareClientHello;
+pub use pre_shared_key::{PreSharedKeyExtensionClientHello, PreSharedKeyExtensionServerHello};
 pub use protocol_name_list::ProtocolNameList;
 pub use psk_key_exchange_modes::PskKeyExchangeModes;
 pub use renegotiation_info::RenegotiationInfo;
-pub use server_name::ServerNameList;
+pub use server_name::{ServerName, ServerNameList};
 pub use signature_algorithms::SignatureAlgorithms;
 pub use status_request::StatusRequest;
 pub use supported_groups::SupportedGroups;
@@ -25,13 +28,11 @@ pub use supported_versions::{SupportedVersionsClientHello, SupportedVersionsServ
 
 use anyhow::{Context, Result, bail};
 
-use crate::{
-    handshake::extension::pre_shared_key::{
-        PreSharedKeyExtensionClientHello, PreSharedKeyExtensionServerHello,
-    },
-    parse::Parse,
-};
+use crate::parse::Parse;
 
+use extension_types::*;
+
+#[cfg_attr(feature = "trace", derive(strum_macros::AsRefStr))]
 #[derive(Debug)]
 pub enum ClientHelloExtensionContent {
     /// ID: 0
@@ -46,8 +47,12 @@ pub enum ClientHelloExtensionContent {
     SignatureAlgorithms(SignatureAlgorithms),
     /// ID: 16
     ApplicationLayerProtocolNegotiation(ProtocolNameList),
+    /// ID: 18
+    SignedSertificateTimestamp,
     /// ID: 23
     ExtendedMainSecret,
+    // 27
+    // 28
     /// ID: 35
     SessionTicket(/* TODO */),
     /// ID: 41
@@ -60,6 +65,7 @@ pub enum ClientHelloExtensionContent {
     PostHandshakeAuth,
     /// ID: 51
     KeyShare(KeyShareClientHello),
+    // 65037
     /// ID: 65281
     RenegotiationInfo(RenegotiationInfo),
 }
@@ -70,24 +76,33 @@ impl ClientHelloExtensionContent {
         let data = &raw[4..];
 
         Ok(match extension_type {
-            0 => Self::ServerName(ServerNameList::parse(data).context("ServerName")?),
-            5 => Self::StatusRequest(StatusRequest::parse(data).context("StatusRequest")?),
-            10 => Self::SupportedGroups(SupportedGroups::parse(data).context("SupportedGroups")?),
-            11 => Self::EcPointFormats(EcPointFormats::parse(data).context("EcPointFormats")?),
-            13 => Self::SignatureAlgorithms(
+            SERVER_NAME => Self::ServerName(ServerNameList::parse(data).context("ServerName")?),
+            STATUS_REQUEST => {
+                Self::StatusRequest(StatusRequest::parse(data).context("StatusRequest")?)
+            }
+            SUPPORTED_GROUPS => {
+                Self::SupportedGroups(SupportedGroups::parse(data).context("SupportedGroups")?)
+            }
+            EC_POINT_FORMATS => {
+                Self::EcPointFormats(EcPointFormats::parse(data).context("EcPointFormats")?)
+            }
+            SIGNATURE_ALGORITHMS => Self::SignatureAlgorithms(
                 SignatureAlgorithms::parse(data).context("SignatureAlgorigthms")?,
             ),
-            16 => Self::ApplicationLayerProtocolNegotiation(
+            APPLICATION_LAYER_PROTOCOL_NEGOTIATION => Self::ApplicationLayerProtocolNegotiation(
                 ProtocolNameList::parse(data).context("ALPNegotiation")?,
             ),
-            23 => Self::ExtendedMainSecret,
-            35 => Self::SessionTicket(),
-            41 => Self::PreSharedKey(PreSharedKeyExtensionClientHello::parse(data)?),
-            43 => Self::SupportedVersions(SupportedVersionsClientHello::parse(data)?),
-            45 => Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?),
-            49 => Self::PostHandshakeAuth,
-            51 => Self::KeyShare(KeyShareClientHello::parse(data)?),
-            65281 => Self::RenegotiationInfo(RenegotiationInfo::parse(data)?),
+            18 => Self::SignedSertificateTimestamp,
+            EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
+            SESSION_TICKET => Self::SessionTicket(),
+            PRE_SHARED_KEY => Self::PreSharedKey(PreSharedKeyExtensionClientHello::parse(data)?),
+            SUPPORTED_VERSIONS => {
+                Self::SupportedVersions(SupportedVersionsClientHello::parse(data)?)
+            }
+            PSK_KEY_EXCHANGE_MODES => Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?),
+            POST_HANDSHAKE_AUTH => Self::PostHandshakeAuth,
+            KEY_SHARE => Self::KeyShare(KeyShareClientHello::parse(data)?),
+            RENEGOTIATION_INFO => Self::RenegotiationInfo(RenegotiationInfo::parse(data)?),
 
             _ => bail!("Unknown extension type: {extension_type}"),
         })
@@ -138,15 +153,36 @@ pub struct ServerHelloExtension {
 }
 
 impl ServerHelloExtension {
+    pub fn new_supported_versions(version: u16) -> Self {
+        Self {
+            length: 2,
+            content: ServerHelloExtensionContent::SupportedVersions(SupportedVersionsServerHello {
+                selected_version: version,
+            }),
+        }
+    }
+
     pub fn length(&self) -> u16 {
         self.length
     }
 
     pub fn size(&self) -> usize {
-        todo!()
+        self.length as usize + 2
     }
 
     pub fn to_raw(&self) -> Box<[u8]> {
-        todo!()
+        match &self.content {
+            ServerHelloExtensionContent::PreSharedKey(e) => {
+                todo!()
+            }
+            ServerHelloExtensionContent::SupportedVersions(e) => [
+                SUPPORTED_VERSIONS.to_be_bytes(),
+                [0, 2],
+                e.selected_version.to_be_bytes(),
+            ]
+            .concat()
+            .into(),
+            ServerHelloExtensionContent::KeyShare(e) => todo!(),
+        }
     }
 }

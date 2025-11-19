@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use crate::parse::{DataVec16, Parse};
 
@@ -16,7 +16,7 @@ impl Parse for ServerName {
                 let data = DataVec16::<u8>::parse(&raw[1..])?.into_inner();
                 Self::HostName(data)
             }
-            _ => todo!(),
+            _ => bail!("Unknown ServerName type: {name_type}"),
         })
     }
 
@@ -34,8 +34,22 @@ pub struct ServerNameList {
 
 impl ServerNameList {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let server_name_list = DataVec16::<ServerName>::parse(raw)?.into_inner();
+        // TODO: Fix implementation
+        let length = u16::from_be_bytes([raw[0], raw[1]]);
+        let payload = &raw[2..];
 
-        Ok(Self { server_name_list })
+        let mut server_name_list = Vec::new();
+        let mut offset: usize = 0;
+        while offset < length as usize {
+            let Ok(el) = ServerName::parse(&payload[offset..]) else {
+                break;
+            };
+            offset += el.size();
+            server_name_list.push(el);
+        }
+
+        Ok(Self {
+            server_name_list: server_name_list.into_boxed_slice(),
+        })
     }
 }

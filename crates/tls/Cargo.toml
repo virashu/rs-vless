@@ -6,3 +6,10 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 tracing = "0.1.41"
+
+strum = { version = "0.27.2", optional = true }
+strum_macros = { version = "0.27.2", optional = true }
+
+[features]
+default = ["trace"]
+trace = ["dep:strum", "dep:strum_macros"]

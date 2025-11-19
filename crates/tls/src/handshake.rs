@@ -44,7 +44,7 @@ impl Handshake {
             24 => Self::KeyUpdate,
             254 => Self::MessageHash,
 
-            _ => todo!(),
+            _ => todo!("{msg_type}"),
         })
     }
 

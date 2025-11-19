@@ -1,6 +1,8 @@
+pub mod alert;
 pub mod handshake;
 pub(crate) mod macros;
 pub(crate) mod parse;
+pub mod record;
 pub(crate) mod util;
 
 #[derive(Debug)]

@@ -56,6 +56,11 @@ impl Parse for ClientHello {
         while parsed_length < total_length {
             match ClientHelloExtension::parse(&extensions_raw[parsed_length..]) {
                 Ok(ext) => {
+                    tracing::trace!(
+                        "Parsed extension: {} ({} bytes body)",
+                        ext.content.as_ref(),
+                        ext.size() - 4
+                    );
                     parsed_length += ext.size();
                     extensions.push(ext);
                 }
