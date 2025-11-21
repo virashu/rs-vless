@@ -5,13 +5,19 @@ use std::{
 };
 use tls::{
     CipherSuite,
-    record::handshake::{
-        Handshake,
-        extension::{ClientHelloExtensionContent, ServerHelloExtension},
-        server_hello::ServerHello,
+    record::{
+        TlsContent, TlsPlaintext,
+        handshake::{
+            Handshake,
+            extension::{KeyShareEntry, NamedGroup, ServerHelloExtension},
+            server_hello::ServerHello,
+        },
     },
-    record::{TlsContent, TlsPlaintext},
 };
+
+use crate::organized_extensions::OrganizedClientExtensions;
+
+mod organized_extensions;
 
 fn handshake(conn: &mut TcpStream) -> Result<()> {
     let mut buf = [0; 2800];
@@ -25,35 +31,18 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         bail!("Not client hello");
     };
 
-    let mut key_share = None;
-    let mut signature_algorithms = None;
-    let mut psk_key_exchange_modes = None;
-    let mut pre_shared_key = None;
+    let exts = OrganizedClientExtensions::organize(hello.extensions);
 
-    for ext in hello.extensions {
-        match ext.content {
-            ClientHelloExtensionContent::KeyShare(e) => key_share = Some(e),
-            ClientHelloExtensionContent::SignatureAlgorithms(e) => signature_algorithms = Some(e),
-            ClientHelloExtensionContent::PskKeyExchangeModes(e) => psk_key_exchange_modes = Some(e),
-            ClientHelloExtensionContent::PreSharedKey(e) => pre_shared_key = Some(e),
-            _ => {}
-        }
-    }
-
-    let key_share = key_share.ok_or(anyhow!("Missing key_share"))?;
+    let key_share = exts.key_share.ok_or(anyhow!("Missing key_share"))?;
     tracing::info!("{key_share:#?}");
 
-    // let server_name = hello
-    //     .extensions
-    //     .iter()
-    //     .find_map(|x| match &x.content {
-    //         ClientHelloExtensionContent::ServerName(e) => Some(e),
-    //         _ => None,
-    //     })
-    //     .unwrap();
+    // let server_name = exts.server_name.unwrap();
     // let ServerName::HostName(name) = &server_name.server_name_list[0];
     // let name = String::from_utf8_lossy(name.as_ref());
     // tracing::info!(?name);
+
+    let key_share =
+        ServerHelloExtension::new_key_share(KeyShareEntry::new(NamedGroup::x25519, &[0; 32]))?;
 
     let s_h = Handshake::ServerHello(ServerHello::new(
         &[0; 32],
@@ -62,7 +51,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
             aead_algorithm: 192,
             hkdf_hash: 48,
         },
-        &[ServerHelloExtension::new_supported_versions(771)],
+        &[ServerHelloExtension::new_supported_versions(772), key_share],
     ));
 
     let record = TlsPlaintext::new_handshake(s_h)?;

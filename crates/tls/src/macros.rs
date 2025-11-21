@@ -42,11 +42,11 @@ macro_rules! auto_from {
             }
         }
 
-        impl std::convert::From<$name> for $vtype {
-            fn from(v: $name) -> Self {
+        impl std::convert::From<&$name> for $vtype {
+            fn from(v: &$name) -> Self {
                 match v {
                     $($name::$vname => $val,)*
-                    $name::Other(other) => other,
+                    $name::Other(other) => *other,
                 }
             }
         }

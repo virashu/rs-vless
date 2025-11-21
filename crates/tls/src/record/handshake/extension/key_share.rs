@@ -11,6 +11,30 @@ pub struct KeyShareEntry {
     pub key_exchange: Box<[u8]>,
 }
 
+impl KeyShareEntry {
+    pub fn new(group: NamedGroup, key: &[u8]) -> Self {
+        Self {
+            group,
+            size: key.len() + 2,
+            key_exchange: Box::from(key),
+        }
+    }
+
+    pub fn to_raw(&self) -> Box<[u8]> {
+        let mut res = Vec::new();
+
+        let group: u16 = (&self.group).into();
+        res.extend(group.to_be_bytes());
+
+        let length = self.key_exchange.len() as u16;
+        res.extend(length.to_be_bytes());
+
+        res.extend(&self.key_exchange);
+
+        res.into_boxed_slice()
+    }
+}
+
 impl Parse for KeyShareEntry {
     fn parse(raw: &[u8]) -> Result<Self> {
         let group = NamedGroup::parse(&raw[0..2])?;
@@ -39,4 +63,9 @@ impl KeyShareClientHello {
 
         Ok(Self { client_shares })
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct KeyShareServerHello {
+    pub server_share: KeyShareEntry,
 }

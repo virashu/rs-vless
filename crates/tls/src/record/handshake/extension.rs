@@ -15,7 +15,8 @@ mod supported_versions;
 
 pub use constants::extension_types;
 pub use ec_point_formats::EcPointFormats;
-pub use key_share::KeyShareClientHello;
+pub use key_share::{KeyShareClientHello, KeyShareEntry, KeyShareServerHello};
+pub use named_group::NamedGroup;
 pub use pre_shared_key::{PreSharedKeyExtensionClientHello, PreSharedKeyExtensionServerHello};
 pub use protocol_name_list::ProtocolNameList;
 pub use psk_key_exchange_modes::PskKeyExchangeModes;
@@ -150,7 +151,7 @@ pub enum ServerHelloExtensionContent {
     /// ID: 43
     SupportedVersions(SupportedVersionsServerHello),
     /// ID: 51
-    KeyShare(KeyShareClientHello),
+    KeyShare(KeyShareServerHello),
 }
 
 #[derive(Clone, Debug)]
@@ -170,6 +171,15 @@ impl ServerHelloExtension {
         }
     }
 
+    pub fn new_key_share(share: KeyShareEntry) -> Result<Self> {
+        Ok(Self {
+            length: share.size().try_into()?,
+            content: ServerHelloExtensionContent::KeyShare(KeyShareServerHello {
+                server_share: share,
+            }),
+        })
+    }
+
     pub fn length(&self) -> u16 {
         self.length
     }
@@ -185,12 +195,20 @@ impl ServerHelloExtension {
             }
             ServerHelloExtensionContent::SupportedVersions(e) => [
                 extension_types::SUPPORTED_VERSIONS.to_be_bytes(),
-                [0, 2],
+                self.length.to_be_bytes(),
                 e.selected_version.to_be_bytes(),
             ]
             .concat()
             .into(),
-            ServerHelloExtensionContent::KeyShare(_e) => todo!(),
+            ServerHelloExtensionContent::KeyShare(e) => {
+                let mut res = Vec::new();
+
+                res.extend(extension_types::KEY_SHARE.to_be_bytes());
+                res.extend(self.length.to_be_bytes());
+                res.extend(e.server_share.to_raw());
+
+                res.into_boxed_slice()
+            }
         }
     }
 }
