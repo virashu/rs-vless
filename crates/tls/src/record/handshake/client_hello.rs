@@ -1,8 +1,8 @@
 use anyhow::{Result, bail};
 
+use super::extension::ClientHelloExtension;
 use crate::{
     CipherSuite,
-    handshake::extension::ClientHelloExtension,
     parse::Parse,
     util::{opaque_vec_8, opaque_vec_16},
 };

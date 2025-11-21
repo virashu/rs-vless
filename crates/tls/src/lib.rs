@@ -1,8 +1,6 @@
 #![allow(clippy::missing_errors_doc)]
 #![forbid(clippy::unwrap_used)]
 
-pub mod alert;
-pub mod handshake;
 pub(crate) mod macros;
 pub(crate) mod parse;
 pub mod record;

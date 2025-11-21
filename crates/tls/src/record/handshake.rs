@@ -2,12 +2,12 @@ pub mod client_hello;
 pub mod extension;
 pub mod server_hello;
 
+use client_hello::ClientHello;
+use server_hello::ServerHello;
+
 use anyhow::Result;
 
-use crate::{
-    handshake::{client_hello::ClientHello, server_hello::ServerHello},
-    parse::Parse,
-};
+use crate::parse::Parse;
 
 #[derive(Debug)]
 pub enum Handshake {

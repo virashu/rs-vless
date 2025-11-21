@@ -1,6 +1,12 @@
+pub mod alert;
+pub mod handshake;
+
 use anyhow::Result;
 
-use crate::{LEGACY_VERSION_BYTES, alert::Alert, handshake::Handshake};
+use crate::LEGACY_VERSION_BYTES;
+
+use alert::Alert;
+use handshake::Handshake;
 
 pub mod content_types {
     pub const INVALID: u8 = 0;

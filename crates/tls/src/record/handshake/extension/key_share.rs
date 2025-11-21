@@ -1,9 +1,7 @@
 use anyhow::Result;
 
-use crate::{
-    handshake::extension::named_group::NamedGroup,
-    parse::{DataVec16, Parse},
-};
+use super::named_group::NamedGroup;
+use crate::parse::{DataVec16, Parse};
 
 #[derive(Clone, Debug)]
 pub struct KeyShareEntry {

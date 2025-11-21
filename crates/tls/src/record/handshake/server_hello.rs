@@ -1,4 +1,5 @@
-use crate::{CipherSuite, handshake::extension::ServerHelloExtension};
+use super::extension::ServerHelloExtension;
+use crate::CipherSuite;
 
 #[derive(Debug)]
 pub struct ServerHello {
