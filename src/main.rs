@@ -19,6 +19,11 @@ use crate::organized_extensions::OrganizedClientExtensions;
 
 mod organized_extensions;
 
+const RANDOM: &[u8; 32] = &[
+    0xEB, 0x88, 0x89, 0xA0, 0x21, 0xE6, 0x78, 0x7B, 0x19, 0xA5, 0xB1, 0xF3, 0x3C, 0x6D, 0xD6, 0xE8,
+    0xD7, 0xFA, 0x0A, 0xAC, 0x3D, 0xB4, 0x51, 0xE5, 0x50, 0x29, 0x18, 0xEA, 0x80, 0x33, 0xEB, 0x91,
+];
+
 fn handshake(conn: &mut TcpStream) -> Result<()> {
     let mut buf = [0; 2800];
     let n = conn.read(&mut buf)?;
@@ -42,19 +47,29 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     // tracing::info!(?name);
 
     let key_share =
-        ServerHelloExtension::new_key_share(KeyShareEntry::new(NamedGroup::x25519, &[0; 32]))?;
+        ServerHelloExtension::new_key_share(KeyShareEntry::new(NamedGroup::x25519, RANDOM))?;
 
     let s_h = Handshake::ServerHello(ServerHello::new(
-        &[0; 32],
+        RANDOM,
         &hello.legacy_session_id,
         CipherSuite {
-            aead_algorithm: 192,
-            hkdf_hash: 48,
+            aead_algorithm: 0x13,
+            hkdf_hash: 0x02,
         },
         &[ServerHelloExtension::new_supported_versions(772), key_share],
     ));
 
     let record = TlsPlaintext::new_handshake(s_h)?;
+
+    // println!(
+    //     "{}",
+    //     record
+    //         .to_raw()
+    //         .iter()
+    //         .map(|x| format!("0x{x:02X?} "))
+    //         .collect::<String>()
+    // );
+
     conn.write_all(&record.to_raw())?;
     Ok(())
 }

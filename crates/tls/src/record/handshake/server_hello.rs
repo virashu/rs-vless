@@ -40,19 +40,13 @@ impl ServerHello {
 
         res.push(0);
 
-        let extensions_length = self.extensions.iter().fold(0, |acc, e| acc + e.length());
+        let extensions_length = self.extensions.iter().fold(0, |acc, e| acc + e.size()) as u16;
         res.extend(extensions_length.to_be_bytes());
         res.extend(
             self.extensions
                 .iter()
                 .flat_map(ServerHelloExtension::to_raw),
         );
-
-        let length = res.len().to_be_bytes();
-        res.insert(0, 1);
-        res.insert(1, length[1]);
-        res.insert(2, length[2]);
-        res.insert(3, length[3]);
 
         res.into_boxed_slice()
     }

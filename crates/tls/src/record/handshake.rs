@@ -9,6 +9,10 @@ use anyhow::Result;
 
 use crate::parse::Parse;
 
+pub mod handshake_types {
+    pub const SERVER_HELLO: u8 = 2;
+}
+
 #[derive(Debug)]
 pub enum Handshake {
     ClientHello(ClientHello),
@@ -33,7 +37,7 @@ impl Handshake {
 
         Ok(match msg_type {
             1 => Self::ClientHello(ClientHello::parse(data)?),
-            2 => todo!(),
+            handshake_types::SERVER_HELLO => todo!(),
             4 => Self::NewSessionTicket,
             5 => Self::EndOfEarlyData,
             8 => Self::EncryptedExtensions,
@@ -50,7 +54,25 @@ impl Handshake {
 
     pub fn to_raw(&self) -> Box<[u8]> {
         match self {
-            Handshake::ServerHello(server_hello) => server_hello.to_raw(),
+            Handshake::ServerHello(s_h) => {
+                let mut res = Vec::new();
+
+                res.push(handshake_types::SERVER_HELLO);
+
+                let raw = s_h.to_raw();
+                let length = raw.len();
+                tracing::info!(?length);
+                let length_bytes = TryInto::<u32>::try_into(length)
+                    .expect("Server hello size exceeds maximum u32 value")
+                    .to_be_bytes();
+
+                tracing::info!(?length_bytes);
+                res.extend(&length_bytes[1..=3]);
+
+                res.extend(raw);
+
+                res.into_boxed_slice()
+            }
             _ => todo!(),
         }
     }

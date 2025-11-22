@@ -185,7 +185,7 @@ impl ServerHelloExtension {
     }
 
     pub fn size(&self) -> usize {
-        self.length as usize + 2
+        self.length as usize + 4
     }
 
     pub fn to_raw(&self) -> Box<[u8]> {
