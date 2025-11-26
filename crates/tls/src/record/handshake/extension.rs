@@ -47,7 +47,7 @@ pub enum ClientHelloExtensionContent {
     /// ID: 16
     ApplicationLayerProtocolNegotiation(ProtocolNameList),
     /// ID: 18
-    SignedSertificateTimestamp,
+    SignedCertificateTimestamp,
     /// ID: 23
     ExtendedMainSecret,
     // 27
@@ -95,7 +95,7 @@ impl ClientHelloExtensionContent {
                     ProtocolNameList::parse(data).context("ALPNegotiation")?,
                 )
             }
-            18 => Self::SignedSertificateTimestamp,
+            18 => Self::SignedCertificateTimestamp,
             extension_types::EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
             extension_types::SESSION_TICKET => Self::SessionTicket(),
             extension_types::PRE_SHARED_KEY => {

@@ -15,9 +15,7 @@ type PublicKey = [u8; 32];
 type SharedKey = [u8; 32];
 
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
-fn x25519(private_key: PrivateKey, point: Scalar) -> PublicKey {
-    let scalar = Scalar::from_bytes(private_key);
-
+fn x25519(scalar: Scalar, point: Scalar) -> PublicKey {
     let x_1 = point;
     let mut x_2 = Scalar::from(1u32);
     let mut z_2 = Scalar::from(0u32);
@@ -68,11 +66,14 @@ pub fn get_keypair() -> (PublicKey, PrivateKey) {
 }
 
 fn get_public_key(private_key: PrivateKey) -> PublicKey {
-    x25519(private_key, BASE)
+    x25519(Scalar::from_bytes(private_key), BASE)
 }
 
 fn get_shared_key(private_key: PrivateKey, peer_public_key: PublicKey) -> SharedKey {
-    todo!()
+    x25519(
+        Scalar::from_bytes(private_key),
+        Scalar::from_bytes(peer_public_key),
+    )
 }
 
 #[cfg(test)]
@@ -95,7 +96,7 @@ mod tests {
             0x77, 0xa2, 0x85, 0x52,
         ];
 
-        let out = x25519(*key.digits(), Scalar::from(scalar));
+        let out = x25519(Scalar::from(key), Scalar::from(scalar));
 
         assert_eq!(out, te);
     }
@@ -110,5 +111,17 @@ mod tests {
 
         // b = 2^254 - 9
         assert_eq!((a * b).into_inner(), ScalarInner::ONE);
+    }
+
+    #[test]
+    fn test_exchange() {
+        let (alice_public, alice_private) = get_keypair();
+
+        let (bob_public, bob_private) = get_keypair();
+
+        let alice_shared = get_shared_key(alice_private, bob_public);
+        let bob_shared = get_shared_key(bob_private, alice_public);
+
+        assert_eq!(alice_shared, bob_shared);
     }
 }

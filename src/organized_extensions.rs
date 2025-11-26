@@ -49,7 +49,7 @@ impl OrganizedClientExtensions {
                 }
                 // ClientHelloExtensionContent::EcPointFormats(e) => todo!(),
                 // ClientHelloExtensionContent::ApplicationLayerProtocolNegotiation(e) => todo!(),
-                // ClientHelloExtensionContent::SignedSertificateTimestamp => todo!(),
+                // ClientHelloExtensionContent::SignedCertificateTimestamp => todo!(),
                 // ClientHelloExtensionContent::ExtendedMainSecret => todo!(),
                 // ClientHelloExtensionContent::SessionTicket() => todo!(),
                 // ClientHelloExtensionContent::SupportedVersions(e) => {

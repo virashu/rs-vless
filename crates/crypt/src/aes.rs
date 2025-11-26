@@ -88,18 +88,19 @@ fn sub_bytes_col(col: [u8; 4]) -> [u8; 4] {
 
 /// ISO/IEC 18033-3:2010 - 5.2.4.6
 fn mix_column(col: [u8; 4]) -> [u8; 4] {
-    let clamp = |x: u16| if x > 0xff { (x ^ 0x1b) & 0xFF } else { x };
+    let clamp = |x: u16| if x > 0xff { x ^ 0x1b } else { x };
 
-    let s0 = col[0] as u16;
-    let s1 = col[1] as u16;
-    let s2 = col[2] as u16;
-    let s3 = col[3] as u16;
+    let s0 = u16::from(col[0]);
+    let s1 = u16::from(col[1]);
+    let s2 = u16::from(col[2]);
+    let s3 = u16::from(col[3]);
 
     let s0r = clamp(s0 * 2) ^ (clamp(s1 * 2) ^ s1) ^ s2 ^ s3;
     let s1r = s0 ^ clamp(s1 * 2) ^ (clamp(s2 * 2) ^ s2) ^ s3;
     let s2r = s0 ^ s1 ^ clamp(2 * s2) ^ (clamp(s3 * 2) ^ s3);
     let s3r = (clamp(s0 * 2) ^ s0) ^ s1 ^ s2 ^ clamp(2 * s3);
 
+    #[allow(clippy::cast_possible_truncation, reason = "GF(256)")]
     [s0r as u8, s1r as u8, s2r as u8, s3r as u8]
 
     // let mut b = [0; 4];
