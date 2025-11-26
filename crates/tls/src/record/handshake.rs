@@ -10,7 +10,17 @@ use anyhow::Result;
 use crate::parse::Parse;
 
 pub mod handshake_types {
+    pub const CLIENT_HELLO: u8 = 1;
     pub const SERVER_HELLO: u8 = 2;
+    pub const NEW_SESSION_TICKET: u8 = 4;
+    pub const END_OF_EARLY_DATA: u8 = 5;
+    pub const ENCRYPTED_EXTENSIONS: u8 = 8;
+    pub const CERTIFICATE: u8 = 11;
+    pub const CERTIFICATE_REQUEST: u8 = 13;
+    pub const CERTIFICATE_VERIFY: u8 = 15;
+    pub const FINISHED: u8 = 20;
+    pub const KEY_UPDATE: u8 = 24;
+    pub const MESSAGE_HASH: u8 = 254;
 }
 
 #[derive(Debug)]
@@ -36,17 +46,17 @@ impl Handshake {
         let _length = u32::from_be_bytes([0, raw[1], raw[2], raw[3]]);
 
         Ok(match msg_type {
-            1 => Self::ClientHello(ClientHello::parse(data)?),
+            handshake_types::CLIENT_HELLO => Self::ClientHello(ClientHello::parse(data)?),
             handshake_types::SERVER_HELLO => todo!(),
-            4 => Self::NewSessionTicket,
-            5 => Self::EndOfEarlyData,
-            8 => Self::EncryptedExtensions,
-            11 => Self::Certificate,
-            13 => Self::CertificateRequest,
-            15 => Self::CertificateVerify,
-            20 => Self::Finished,
-            24 => Self::KeyUpdate,
-            254 => Self::MessageHash,
+            handshake_types::NEW_SESSION_TICKET => Self::NewSessionTicket,
+            handshake_types::END_OF_EARLY_DATA => Self::EndOfEarlyData,
+            handshake_types::ENCRYPTED_EXTENSIONS => Self::EncryptedExtensions,
+            handshake_types::CERTIFICATE => Self::Certificate,
+            handshake_types::CERTIFICATE_REQUEST => Self::CertificateRequest,
+            handshake_types::CERTIFICATE_VERIFY => Self::CertificateVerify,
+            handshake_types::FINISHED => Self::Finished,
+            handshake_types::KEY_UPDATE => Self::KeyUpdate,
+            handshake_types::MESSAGE_HASH => Self::MessageHash,
 
             _ => todo!("{msg_type}"),
         })

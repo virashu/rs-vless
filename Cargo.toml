@@ -4,10 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.100"
-tls = { path = "crates/tls" }
-tracing = "0.1.41"
+anyhow.workspace = true
+tracing.workspace = true
+tls.path = "crates/tls"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+num-bigint = "0.4.6"
 
 [workspace]
 members = [".", "crates/*"]
+
+[workspace.dependencies]
+anyhow = "1.0.100"
+tracing = "0.1.41"

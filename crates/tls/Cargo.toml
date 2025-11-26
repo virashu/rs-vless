@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.100"
-tracing = "0.1.41"
+anyhow.workspace = true
+tracing.workspace = true
 
 strum = { version = "0.27.2", optional = true }
 strum_macros = { version = "0.27.2", optional = true }
