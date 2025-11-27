@@ -14,11 +14,11 @@ impl Scalar {
     const DELTA: ScalarInner = ScalarInner::ZERO.overflowing_sub(Self::PRIME).0;
 
     pub fn from_bytes(value: [u8; 32]) -> Self {
-        Self::from(ScalarInner::from_le_slice(&value).unwrap())
+        Self::from(ScalarInner::from_digits(value))
     }
 
     pub fn into_bytes(self) -> [u8; 32] {
-        (self.into_inner().digits()[0..32]).try_into().unwrap()
+        *self.into_inner().digits()
     }
 
     pub const fn raw(value: ScalarInner) -> Self {
@@ -34,6 +34,74 @@ impl Scalar {
     }
 
     pub fn inv(self) -> Scalar {
+        assert!(self.0 != ScalarInner::ZERO, "Cannot invert zero");
+
+        let x_p1 = self;
+        let x_p2 = x_p1.sq();
+        let x_p9 = x_p2.sq().sq() * x_p1;
+        let x_p11 = x_p9 * x_p2;
+
+        let x5 = x_p11.sq() * x_p9;
+
+        // let x10   = (nth double   5 `andThen` add x5   ) x5
+        let mut t = x5;
+        for _ in 0..5 {
+            t = t.sq();
+        }
+        let x10 = t * x5;
+
+        // let x20   = (nth double  10 `andThen` add x10  ) x10
+        let mut t = x10;
+        for _ in 0..10 {
+            t = t.sq();
+        }
+        let x20 = t * x10;
+
+        // let x40   = (nth double  20 `andThen` add x20  ) x20
+        let mut t = x20;
+        for _ in 0..20 {
+            t = t.sq();
+        }
+        let x40 = t * x20;
+
+        // let x50   = (nth double  10 `andThen` add x10  ) x40
+        let mut t = x40;
+        for _ in 0..10 {
+            t = t.sq();
+        }
+        let x50 = t * x10;
+
+        // let x100  = (nth double  50 `andThen` add x50  ) x50
+        let mut t = x50;
+        for _ in 0..50 {
+            t = t.sq();
+        }
+        let x100 = t * x50;
+
+        // (nth double 100 `andThen` add x100   `andThen`
+        //  nth double  50 `andThen` add x50    `andThen`
+        //  nth double   5 `andThen` add _1011) x100
+        let mut y = x100;
+
+        for _ in 0..100 {
+            y = y.sq();
+        }
+        y = y * x100;
+
+        for _ in 0..50 {
+            y = y.sq();
+        }
+        y = y * x50;
+
+        for _ in 0..5 {
+            y = y.sq();
+        }
+        y = y * x_p11;
+
+        y
+    }
+
+    pub fn inv_a(self) -> Scalar {
         let x = self;
 
         let x2 = x * x;
@@ -56,22 +124,22 @@ impl Scalar {
             };
         }
 
-        sq_mul!(126, x5);
-        sq_mul!(4, x3);
-        sq_mul!(5, x15);
-        sq_mul!(5, x15);
+        sq_mul!(126, x5); // 257
+        sq_mul!(4, x3); // 11
+        sq_mul!(5, x15); // 25
+        sq_mul!(5, x15); // 25
 
-        sq_mul!(4, x9);
-        sq_mul!(2, x3);
-        sq_mul!(5, x15);
-        sq_mul!(4, x5);
+        sq_mul!(4, x9); // 17
+        sq_mul!(2, x3); // 7
+        sq_mul!(5, x15); // 25
+        sq_mul!(4, x5); // 13
 
-        sq_mul!(6, x5);
-        sq_mul!(3, x7);
-        sq_mul!(5, x15);
-        sq_mul!(5, x7);
+        sq_mul!(6, x5); // 17
+        sq_mul!(3, x7); // 13
+        sq_mul!(5, x15); // 25
+        sq_mul!(5, x7); // 17
 
-        sq_mul!(4, x3);
+        sq_mul!(4, x3); // 11
         sq_mul!(5, x11);
         sq_mul!(6, x11);
         sq_mul!(10, x9);
@@ -118,7 +186,7 @@ impl std::ops::Sub for Scalar {
         let a = BigInt::from_bytes_le(num_bigint::Sign::Plus, self.0.digits());
         let b = BigInt::from_bytes_le(num_bigint::Sign::Plus, rhs.0.digits());
 
-        let c: BigInt = (a * b) % (BigInt::from(2u8).pow(255) - BigInt::from(19u8));
+        let c: BigInt = (a - b) % (BigInt::from(2u8).pow(255) - BigInt::from(19u8));
         let c = ScalarInner::from_le_slice(&c.to_bytes_le().1).unwrap();
 
         Self(c)

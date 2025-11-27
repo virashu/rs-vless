@@ -24,8 +24,9 @@ fn x25519(scalar: Scalar, point: Scalar) -> PublicKey {
     let mut swap = false;
 
     // Montgomery ladder
-    for t in (0..=255u32).rev() {
+    for t in (0..255).rev() {
         let k_t = (scalar.into_inner() >> t) & ScalarInner::ONE == ScalarInner::ONE;
+
         swap ^= k_t;
         (x_2, x_3) = if swap { (x_3, x_2) } else { (x_2, x_3) };
         (z_2, z_3) = if swap { (z_3, z_2) } else { (z_2, z_3) };
@@ -103,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_inv() {
-        let a = Scalar::from(2);
+        let a = Scalar::from(3);
         let b = a.inv();
 
         dbg!(a);
