@@ -1,5 +1,5 @@
 use bnum::BUintD8;
-use num_bigint::{BigInt, BigUint};
+use num_bigint::{BigInt, BigUint, Sign};
 
 type ScalarInner = BUintD8<32>;
 
@@ -172,7 +172,7 @@ impl std::ops::Add for Scalar {
         let (mut c, overflow) = a.overflowing_add(b);
 
         if overflow {
-            c = c % Self::PRIME + Self::DELTA;
+            c += Self::DELTA;
         }
 
         Self(c % Self::PRIME)
@@ -183,13 +183,19 @@ impl std::ops::Sub for Scalar {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        let a = BigInt::from_bytes_le(num_bigint::Sign::Plus, self.0.digits());
-        let b = BigInt::from_bytes_le(num_bigint::Sign::Plus, rhs.0.digits());
+        let a = BigInt::from_bytes_le(Sign::Plus, self.0.digits());
+        let b = BigInt::from_bytes_le(Sign::Plus, rhs.0.digits());
 
-        let c: BigInt = (a - b) % (BigInt::from(2u8).pow(255) - BigInt::from(19u8));
-        let c = ScalarInner::from_le_slice(&c.to_bytes_le().1).unwrap();
+        let mut c: BigInt = (a - b) % (BigInt::from(2u8).pow(255) - BigInt::from(19u8));
 
-        Self(c)
+        if c.sign() == Sign::Minus {
+            c += BigInt::from(2u8).pow(255) - BigInt::from(19u8);
+        }
+
+        let (sign, bytes) = c.to_bytes_le();
+        assert_ne!(sign, Sign::Minus);
+
+        Self(ScalarInner::from_le_slice(&bytes).unwrap())
     }
 }
 

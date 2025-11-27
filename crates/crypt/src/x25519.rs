@@ -17,10 +17,13 @@ type SharedKey = [u8; 32];
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
 fn x25519(scalar: Scalar, point: Scalar) -> PublicKey {
     let x_1 = point;
+
     let mut x_2 = Scalar::from(1u32);
     let mut z_2 = Scalar::from(0u32);
+
     let mut x_3 = point;
     let mut z_3 = Scalar::from(1u32);
+
     let mut swap = false;
 
     // Montgomery ladder
@@ -66,11 +69,11 @@ pub fn get_keypair() -> (PublicKey, PrivateKey) {
     (get_public_key(private_key), private_key)
 }
 
-fn get_public_key(private_key: PrivateKey) -> PublicKey {
+pub fn get_public_key(private_key: PrivateKey) -> PublicKey {
     x25519(Scalar::from_bytes(private_key), BASE)
 }
 
-fn get_shared_key(private_key: PrivateKey, peer_public_key: PublicKey) -> SharedKey {
+pub fn get_shared_key(private_key: PrivateKey, peer_public_key: PublicKey) -> SharedKey {
     x25519(
         Scalar::from_bytes(private_key),
         Scalar::from_bytes(peer_public_key),
@@ -99,19 +102,30 @@ mod tests {
 
         let out = x25519(Scalar::from(key), Scalar::from(scalar));
 
+        println!(
+            "expected: {}",
+            te.iter().map(|x| format!("{x:02x}")).collect::<String>()
+        );
+        println!(
+            "observed: {}",
+            out.iter().map(|x| format!("{x:02x}")).collect::<String>()
+        );
+
         assert_eq!(out, te);
     }
 
     #[test]
     fn test_inv() {
-        let a = Scalar::from(3);
-        let b = a.inv();
+        for k in 1..5 {
+            let a = Scalar::from(k);
+            let b = a.inv();
 
-        dbg!(a);
-        dbg!(b);
+            dbg!(a);
+            dbg!(b);
 
-        // b = 2^254 - 9
-        assert_eq!((a * b).into_inner(), ScalarInner::ONE);
+            // b = 2^254 - 9
+            assert_eq!((a * b).into_inner(), ScalarInner::ONE);
+        }
     }
 
     #[test]
