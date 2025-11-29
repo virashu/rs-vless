@@ -6,7 +6,10 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true
+
 tls.path = "crates/tls"
+crypt.path = "crates/crypt"
+
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 num-bigint = "0.4.6"
 

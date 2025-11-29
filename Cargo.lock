@@ -230,6 +230,7 @@ name = "rs-vless"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crypt",
  "num-bigint",
  "tls",
  "tracing",

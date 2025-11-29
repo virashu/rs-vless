@@ -71,12 +71,10 @@ impl Handshake {
 
                 let raw = s_h.to_raw();
                 let length = raw.len();
-                tracing::info!(?length);
                 let length_bytes = TryInto::<u32>::try_into(length)
                     .expect("Server hello size exceeds maximum u32 value")
                     .to_be_bytes();
 
-                tracing::info!(?length_bytes);
                 res.extend(&length_bytes[1..=3]);
 
                 res.extend(raw);

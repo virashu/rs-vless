@@ -1,4 +1,5 @@
 use anyhow::{Result, anyhow, bail};
+use crypt::x25519;
 use std::{
     io::{Read, Write},
     net::{TcpListener, TcpStream},
@@ -25,6 +26,8 @@ const RANDOM: &[u8; 32] = &[
 ];
 
 fn handshake(conn: &mut TcpStream) -> Result<()> {
+    const VERSION: u16 = 0x0304;
+
     let mut buf = [0; 2800];
     let n = conn.read(&mut buf)?;
 
@@ -38,7 +41,10 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     let exts = OrganizedClientExtensions::organize(hello.extensions);
 
-    let key_share = exts.key_share.ok_or(anyhow!("Missing key_share"))?;
+    let key_share = exts
+        .key_share
+        .ok_or(anyhow!("Missing key_share"))?
+        .to_hashmap();
     tracing::info!("{key_share:#?}");
 
     // let server_name = exts.server_name.unwrap();
@@ -46,8 +52,16 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     // let name = String::from_utf8_lossy(name.as_ref());
     // tracing::info!(?name);
 
+    let x25519_peer_pub = key_share
+        .get(&NamedGroup::x25519)
+        .ok_or(anyhow!("No x25519 key share"))?;
+
+    let (x25519_pub, x25519_priv) = x25519::get_keypair();
+
+    let x25519_shared = x25519::get_shared_key(x25519_priv, x25519_peer_pub.as_ref().try_into()?);
+
     let key_share =
-        ServerHelloExtension::new_key_share(KeyShareEntry::new(NamedGroup::x25519, RANDOM))?;
+        ServerHelloExtension::new_key_share(KeyShareEntry::new(NamedGroup::x25519, &x25519_pub))?;
 
     let s_h = Handshake::ServerHello(ServerHello::new(
         RANDOM,
@@ -56,7 +70,10 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
             aead_algorithm: 0x13,
             hkdf_hash: 0x02,
         },
-        &[ServerHelloExtension::new_supported_versions(772), key_share],
+        &[
+            ServerHelloExtension::new_supported_versions(VERSION),
+            key_share,
+        ],
     ));
 
     let record = TlsPlaintext::new_handshake(s_h)?;

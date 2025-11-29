@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 
 use super::named_group::NamedGroup;
@@ -62,6 +64,14 @@ impl KeyShareClientHello {
         let client_shares = DataVec16::<KeyShareEntry>::parse(raw)?.into_inner();
 
         Ok(Self { client_shares })
+    }
+
+    pub fn to_hashmap(&self) -> HashMap<NamedGroup, Box<[u8]>> {
+        self.client_shares
+            .iter()
+            .cloned()
+            .map(|share| (share.group, share.key_exchange))
+            .collect()
     }
 }
 
