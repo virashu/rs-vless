@@ -3,10 +3,10 @@ use num_bigint::{BigInt, BigUint, Sign};
 
 type ScalarInner = BUintD8<32>;
 
-#[derive(Clone, Copy, Debug)]
-pub struct Scalar(ScalarInner);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Field25519(ScalarInner);
 
-impl Scalar {
+impl Field25519 {
     const PRIME: ScalarInner = ScalarInner::from_digit(2u8)
         .pow(255)
         .saturating_sub(ScalarInner::from_digit(19u8));
@@ -14,9 +14,30 @@ impl Scalar {
     const DELTA: ScalarInner = ScalarInner::ZERO.overflowing_sub(Self::PRIME).0;
 
     pub fn from_bytes(value: [u8; 32]) -> Self {
-        Self::from(ScalarInner::from_digits(value))
+        Self(ScalarInner::from_digits(value) % Self::PRIME)
     }
 
+    pub fn from_scalar(mut value: [u8; 32]) -> Self {
+        value[0] &= 248;
+        value[31] &= 127;
+        value[31] |= 64;
+
+        Self::from_bytes(value)
+    }
+
+    pub fn from_point(value: [u8; 32]) -> Self {
+        Self::from_bytes(value)
+    }
+
+    pub fn decode_scalar(value: &str) -> Self {
+        todo!()
+    }
+
+    pub fn decode_point(value: &str) -> Self {
+        todo!()
+    }
+
+    /// Little-endian bytes
     pub fn into_bytes(self) -> [u8; 32] {
         *self.into_inner().digits()
     }
@@ -33,7 +54,8 @@ impl Scalar {
         self.0
     }
 
-    pub fn inv(self) -> Scalar {
+    // Field inversion
+    pub fn inv(self) -> Field25519 {
         assert!(self.0 != ScalarInner::ZERO, "Cannot invert zero");
 
         let x_p1 = self;
@@ -101,68 +123,69 @@ impl Scalar {
         y
     }
 
-    pub fn inv_a(self) -> Scalar {
-        let x = self;
+    // Scalar inversion
+    // pub fn inv_a(self) -> Scalar {
+    //     let x = self;
 
-        let x2 = x * x;
-        let x3 = x * x2;
-        let x4 = x2 * x2;
-        let x5 = x2 * x3;
-        let x7 = x2 * x5;
-        let x9 = x2 * x7;
-        let x11 = x2 * x9;
-        let x15 = x4 * x11;
-        let x16 = x * x15;
-        let mut y = x16;
+    //     let x2 = x * x;
+    //     let x3 = x * x2;
+    //     let x4 = x2 * x2;
+    //     let x5 = x2 * x3;
+    //     let x7 = x2 * x5;
+    //     let x9 = x2 * x7;
+    //     let x11 = x2 * x9;
+    //     let x15 = x4 * x11;
+    //     let x16 = x * x15;
+    //     let mut y = x16;
 
-        macro_rules! sq_mul {
-            ($sq:expr, $mul:expr) => {
-                for _ in 0..$sq {
-                    y = y * y;
-                }
-                y = y * $mul;
-            };
-        }
+    //     macro_rules! sq_mul {
+    //         ($sq:expr, $mul:expr) => {
+    //             for _ in 0..$sq {
+    //                 y = y * y;
+    //             }
+    //             y = y * $mul;
+    //         };
+    //     }
 
-        sq_mul!(126, x5); // 257
-        sq_mul!(4, x3); // 11
-        sq_mul!(5, x15); // 25
-        sq_mul!(5, x15); // 25
+    //     sq_mul!(126, x5); // 257
+    //     sq_mul!(4, x3); // 11
+    //     sq_mul!(5, x15); // 25
+    //     sq_mul!(5, x15); // 25
 
-        sq_mul!(4, x9); // 17
-        sq_mul!(2, x3); // 7
-        sq_mul!(5, x15); // 25
-        sq_mul!(4, x5); // 13
+    //     sq_mul!(4, x9); // 17
+    //     sq_mul!(2, x3); // 7
+    //     sq_mul!(5, x15); // 25
+    //     sq_mul!(4, x5); // 13
 
-        sq_mul!(6, x5); // 17
-        sq_mul!(3, x7); // 13
-        sq_mul!(5, x15); // 25
-        sq_mul!(5, x7); // 17
+    //     sq_mul!(6, x5); // 17
+    //     sq_mul!(3, x7); // 13
+    //     sq_mul!(5, x15); // 25
+    //     sq_mul!(5, x7); // 17
 
-        sq_mul!(4, x3); // 11
-        sq_mul!(5, x11);
-        sq_mul!(6, x11);
-        sq_mul!(10, x9);
+    //     sq_mul!(4, x3); // 11
+    //     sq_mul!(5, x11);
+    //     sq_mul!(6, x11);
+    //     sq_mul!(10, x9);
 
-        sq_mul!(4, x3);
-        sq_mul!(5, x3);
-        sq_mul!(5, x3);
-        sq_mul!(5, x9);
+    //     sq_mul!(4, x3);
+    //     sq_mul!(5, x3);
+    //     sq_mul!(5, x3);
+    //     sq_mul!(5, x9);
 
-        sq_mul!(4, x7);
-        sq_mul!(6, x15);
-        sq_mul!(5, x11);
-        sq_mul!(3, x5);
+    //     sq_mul!(4, x7);
+    //     sq_mul!(6, x15);
+    //     sq_mul!(5, x11);
+    //     sq_mul!(3, x5);
 
-        sq_mul!(6, x15);
-        sq_mul!(3, x5);
-        sq_mul!(3, x3);
+    //     sq_mul!(6, x15);
+    //     sq_mul!(3, x5);
+    //     sq_mul!(3, x3);
 
-        y
-    }
+    //     y
+    // }
 }
 
-impl std::ops::Add for Scalar {
+impl std::ops::Add for Field25519 {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -179,7 +202,7 @@ impl std::ops::Add for Scalar {
     }
 }
 
-impl std::ops::Sub for Scalar {
+impl std::ops::Sub for Field25519 {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -199,7 +222,7 @@ impl std::ops::Sub for Scalar {
     }
 }
 
-impl std::ops::Mul for Scalar {
+impl std::ops::Mul for Field25519 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -213,14 +236,20 @@ impl std::ops::Mul for Scalar {
     }
 }
 
-impl From<u32> for Scalar {
+impl From<u32> for Field25519 {
     fn from(value: u32) -> Self {
         Self(ScalarInner::from(value))
     }
 }
 
-impl From<ScalarInner> for Scalar {
+impl From<ScalarInner> for Field25519 {
     fn from(value: ScalarInner) -> Self {
-        Self(value % Self::PRIME)
+        Self::from_bytes(*(value % Self::PRIME).digits())
+    }
+}
+
+impl std::fmt::Display for Field25519 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:x}", self.0)
     }
 }

@@ -1,37 +1,42 @@
 mod scalar;
-use scalar::Scalar;
+use std::mem;
+
+use scalar::Field25519;
 
 use bnum::BUintD8;
 
 type ScalarInner = BUintD8<32>;
 
-// const A1: u256 = u256::parse_str_radix("486662", 10);
-const A24: Scalar = Scalar::raw(ScalarInner::parse_str_radix("121665", 10));
-const BASE: Scalar = Scalar::raw(ScalarInner::NINE);
+// const A1: Scalar = Scalar::raw(ScalarInner::parse_str_radix("486662", 10));
+const A24: Field25519 = Field25519::raw(ScalarInner::parse_str_radix("121665", 10));
+const BASE: Field25519 = Field25519::raw(ScalarInner::NINE);
 
 type PrivateKey = [u8; 32];
 type PublicKey = [u8; 32];
 type SharedKey = [u8; 32];
 
 #[allow(clippy::many_single_char_names, clippy::similar_names)]
-fn x25519(scalar: Scalar, point: Scalar) -> Scalar {
+fn x25519(scalar: Field25519, point: Field25519) -> Field25519 {
     let x_1 = point;
 
-    let mut x_2 = Scalar::from(1u32);
-    let mut z_2 = Scalar::from(0u32);
+    let mut x_2 = Field25519::from(1u32);
+    let mut z_2 = Field25519::from(0u32);
 
     let mut x_3 = point;
-    let mut z_3 = Scalar::from(1u32);
+    let mut z_3 = Field25519::from(1u32);
 
     let mut swap = false;
 
     // Montgomery ladder
     for t in (0..255).rev() {
         let k_t = (scalar.into_inner() >> t) & ScalarInner::ONE == ScalarInner::ONE;
+        // let k_t = (scalar.into_bytes()[t / 8] >> (t % 8)) & 1 == 1;
 
         swap ^= k_t;
-        (x_2, x_3) = if swap { (x_3, x_2) } else { (x_2, x_3) };
-        (z_2, z_3) = if swap { (z_3, z_2) } else { (z_2, z_3) };
+        if swap {
+            mem::swap(&mut x_2, &mut x_3);
+            mem::swap(&mut z_2, &mut z_3);
+        }
         swap = k_t;
 
         let a = x_2 + z_2;
@@ -54,27 +59,40 @@ fn x25519(scalar: Scalar, point: Scalar) -> Scalar {
         z_2 = e * (aa + (A24 * e));
     }
 
-    (x_2, _) = if swap { (x_3, x_2) } else { (x_2, x_3) };
-    (z_2, _) = if swap { (z_3, z_2) } else { (z_2, z_3) };
+    if swap {
+        mem::swap(&mut x_2, &mut x_3);
+        mem::swap(&mut z_2, &mut z_3);
+    }
 
     x_2 * z_2.inv()
 }
 
-pub fn get_keypair() -> (PublicKey, PrivateKey) {
+pub fn get_private_key() -> PrivateKey {
     let mut private_key = [0; 32];
     rand::fill(&mut private_key);
 
-    (get_public_key(private_key), private_key)
+    private_key[0] &= 0b1111_1000;
+    private_key[31] &= 0b0111_1111;
+    private_key[31] |= 0b0100_0000;
+
+    private_key
+}
+
+pub fn get_keypair() -> (PublicKey, PrivateKey) {
+    let private_key = get_private_key();
+    let public_key = get_public_key(private_key);
+
+    (public_key, private_key)
 }
 
 pub fn get_public_key(private_key: PrivateKey) -> PublicKey {
-    x25519(Scalar::from_bytes(private_key), BASE).into_bytes()
+    x25519(Field25519::from_scalar(private_key), BASE).into_bytes()
 }
 
 pub fn get_shared_key(private_key: PrivateKey, peer_public_key: PublicKey) -> SharedKey {
     x25519(
-        Scalar::from_bytes(private_key),
-        Scalar::from_bytes(peer_public_key),
+        Field25519::from_scalar(private_key),
+        Field25519::from_point(peer_public_key),
     )
     .into_bytes()
 }
@@ -85,103 +103,126 @@ mod tests {
 
     #[test]
     fn test_gen() {
-        let scalar = ScalarInner::parse_str_radix(
-            "a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4",
-            16,
-        );
-        let point = ScalarInner::parse_str_radix(
-            "e6db6867583030db3594c1a424b15f7c726624ec26b3353b10a903a6d0ab1c4c",
-            16,
-        );
-        let expected = [
+        let scalar = Field25519::from_scalar([
+            0xa5, 0x46, 0xe3, 0x6b, 0xf0, 0x52, 0x7c, 0x9d, 0x3b, 0x16, 0x15, 0x4b, 0x82, 0x46,
+            0x5e, 0xdd, 0x62, 0x14, 0x4c, 0x0a, 0xc1, 0xfc, 0x5a, 0x18, 0x50, 0x6a, 0x22, 0x44,
+            0xba, 0x44, 0x9a, 0xc4,
+        ]);
+        let point = Field25519::from_point([
+            0xe6, 0xdb, 0x68, 0x67, 0x58, 0x30, 0x30, 0xdb, 0x35, 0x94, 0xc1, 0xa4, 0x24, 0xb1,
+            0x5f, 0x7c, 0x72, 0x66, 0x24, 0xec, 0x26, 0xb3, 0x35, 0x3b, 0x10, 0xa9, 0x03, 0xa6,
+            0xd0, 0xab, 0x1c, 0x4c,
+        ]);
+        let expected = Field25519::from_point([
             0xc3, 0xda, 0x55, 0x37, 0x9d, 0xe9, 0xc6, 0x90, 0x8e, 0x94, 0xea, 0x4d, 0xf2, 0x8d,
             0x08, 0x4f, 0x32, 0xec, 0xcf, 0x03, 0x49, 0x1c, 0x71, 0xf7, 0x54, 0xb4, 0x07, 0x55,
             0x77, 0xa2, 0x85, 0x52,
-        ];
+        ]);
 
-        let out = x25519(Scalar::from(scalar), Scalar::from(point)).into_bytes();
+        let out = x25519(scalar, point);
 
         assert_eq!(out, expected);
     }
 
     #[test]
     fn test_diffie_hellman() {
-        let alice_private = ScalarInner::parse_str_radix(
-            "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
-            16,
-        );
-        let alice_public = ScalarInner::parse_str_radix(
-            "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
-            16,
-        );
-        let bob_private = ScalarInner::parse_str_radix(
-            "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb",
-            16,
-        );
-        let bob_public = ScalarInner::parse_str_radix(
-            "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
-            16,
-        );
-        let shared = ScalarInner::parse_str_radix(
-            "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742",
-            16,
+        let alice_private = Field25519::from_scalar([
+            0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2,
+            0x66, 0x45, 0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5,
+            0x1d, 0xb9, 0x2c, 0x2a,
+        ]);
+        let alice_public = Field25519::from_point([
+            0x85, 0x20, 0xf0, 0x09, 0x89, 0x30, 0xa7, 0x54, 0x74, 0x8b, 0x7d, 0xdc, 0xb4, 0x3e,
+            0xf7, 0x5a, 0x0d, 0xbf, 0x3a, 0x0d, 0x26, 0x38, 0x1a, 0xf4, 0xeb, 0xa4, 0xa9, 0x8e,
+            0xaa, 0x9b, 0x4e, 0x6a,
+        ]);
+        let bob_private = Field25519::from_scalar([
+            0x5d, 0xab, 0x08, 0x7e, 0x62, 0x4a, 0x8a, 0x4b, 0x79, 0xe1, 0x7f, 0x8b, 0x83, 0x80,
+            0x0e, 0xe6, 0x6f, 0x3b, 0xb1, 0x29, 0x26, 0x18, 0xb6, 0xfd, 0x1c, 0x2f, 0x8b, 0x27,
+            0xff, 0x88, 0xe0, 0xeb,
+        ]);
+        let bob_public = Field25519::from_point([
+            0xde, 0x9e, 0xdb, 0x7d, 0x7b, 0x7d, 0xc1, 0xb4, 0xd3, 0x5b, 0x61, 0xc2, 0xec, 0xe4,
+            0x35, 0x37, 0x3f, 0x83, 0x43, 0xc8, 0x5b, 0x78, 0x67, 0x4d, 0xad, 0xfc, 0x7e, 0x14,
+            0x6f, 0x88, 0x2b, 0x4f,
+        ]);
+        let shared = Field25519::from_point([
+            0x4a, 0x5d, 0x9d, 0x5b, 0xa4, 0xce, 0x2d, 0xe1, 0x72, 0x8e, 0x3b, 0xf4, 0x80, 0x35,
+            0x0f, 0x25, 0xe0, 0x7e, 0x21, 0xc9, 0x47, 0xd1, 0x9e, 0x33, 0x76, 0xf0, 0x9b, 0x3c,
+            0x1e, 0x16, 0x17, 0x42,
+        ]);
+
+        assert_eq!(
+            get_public_key(alice_private.into_bytes()),
+            alice_public.into_bytes()
         );
 
         assert_eq!(
-            get_public_key(*alice_private.digits()),
-            *alice_public.digits()
+            get_public_key(bob_private.into_bytes()),
+            bob_public.into_bytes()
         );
 
-        assert_eq!(get_public_key(*bob_private.digits()), *bob_public.digits());
+        assert_eq!(
+            get_shared_key(alice_private.into_bytes(), bob_public.into_bytes()),
+            shared.into_bytes()
+        );
 
         assert_eq!(
-            get_shared_key(*alice_public.digits(), *bob_public.digits()),
-            *shared.digits()
+            get_shared_key(bob_private.into_bytes(), alice_public.into_bytes()),
+            shared.into_bytes()
         );
     }
 
     #[test]
     fn test_n_calls() {
-        let iter_1 = ScalarInner::parse_str_radix(
-            "422c8e7a6227d7bca1350b3e2bb7279f7897b87bb6854b783c60e80311ae3079",
-            16,
-        );
-        let iter_1k = ScalarInner::parse_str_radix(
-            "684cf59ba83309552800ef566f2f4d3c1c3887c49360e3875f2eb94d99532c51",
-            16,
-        );
-        let iter_1m = ScalarInner::parse_str_radix(
-            "7c3911e0ab2586fd864497297e575e6f3bc601c0883c30df5f4dd2d24f665424",
-            16,
-        );
+        let iter_1 = Field25519::from_point([
+            0x42, 0x2c, 0x8e, 0x7a, 0x62, 0x27, 0xd7, 0xbc, 0xa1, 0x35, 0x0b, 0x3e, 0x2b, 0xb7,
+            0x27, 0x9f, 0x78, 0x97, 0xb8, 0x7b, 0xb6, 0x85, 0x4b, 0x78, 0x3c, 0x60, 0xe8, 0x03,
+            0x11, 0xae, 0x30, 0x79,
+        ]);
+        let iter_1k = Field25519::from_point([
+            0x68, 0x4c, 0xf5, 0x9b, 0xa8, 0x33, 0x09, 0x55, 0x28, 0x00, 0xef, 0x56, 0x6f, 0x2f,
+            0x4d, 0x3c, 0x1c, 0x38, 0x87, 0xc4, 0x93, 0x60, 0xe3, 0x87, 0x5f, 0x2e, 0xb9, 0x4d,
+            0x99, 0x53, 0x2c, 0x51,
+        ]);
+        let iter_1m = Field25519::from_point([
+            0x7c, 0x39, 0x11, 0xe0, 0xab, 0x25, 0x86, 0xfd, 0x86, 0x44, 0x97, 0x29, 0x7e, 0x57,
+            0x5e, 0x6f, 0x3b, 0xc6, 0x01, 0xc0, 0x88, 0x3c, 0x30, 0xdf, 0x5f, 0x4d, 0xd2, 0xd2,
+            0x4f, 0x66, 0x54, 0x24,
+        ]);
 
-        let mut scalar = Scalar::raw(ScalarInner::parse_str_radix(
-            "0900000000000000000000000000000000000000000000000000000000000000",
-            16,
-        ));
-        let point = scalar;
+        let mut scalar = Field25519::from_scalar([
+            0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ]);
+        let mut point = Field25519::from_point([
+            0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ]);
 
-        scalar = x25519(scalar, point);
+        // 1 iteration
+        (scalar, point) = (x25519(scalar, point), scalar);
+        assert_eq!(scalar, iter_1, "1 iteration");
 
-        assert_eq!(scalar.into_inner(), iter_1);
-
-        for _ in 0..1000 {
-            scalar = x25519(scalar, point);
+        // 1,000 iterations
+        for _ in 0..999 {
+            (scalar, point) = (x25519(scalar, point), scalar);
         }
+        assert_eq!(scalar, iter_1k, "1k iterations");
 
-        assert_eq!(scalar.into_inner(), iter_1k);
-
-        for _ in 0..1_000_000 {
-            scalar = x25519(scalar, point);
+        // 1,000,000 iterations
+        for _ in 0..999_000 {
+            (scalar, point) = (x25519(scalar, point), scalar);
         }
-
-        assert_eq!(scalar.into_inner(), iter_1m);
+        assert_eq!(scalar, iter_1m, "1M iterations");
     }
 
     #[test]
     fn test_inv() {
         for k in 1..5 {
-            let a = Scalar::from(k);
+            let a = Field25519::from(k);
             let b = a.inv();
 
             dbg!(a);
