@@ -1,19 +1,29 @@
 use anyhow::Result;
 
 use super::signature_scheme::SignatureScheme;
-use crate::parse::{DataVec16, RawDeser};
+use crate::parse::{DataVec16, RawDeser, RawSer, RawSize};
 
 #[derive(Clone, Debug)]
 pub struct SignatureAlgorithms {
-    pub supported_signature_algorithms: Box<[SignatureScheme]>,
+    pub supported_signature_algorithms: DataVec16<SignatureScheme>,
 }
 
 impl SignatureAlgorithms {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let supported_signature_algorithms = DataVec16::<SignatureScheme>::deser(raw)?.into_inner();
-
         Ok(Self {
-            supported_signature_algorithms,
+            supported_signature_algorithms: DataVec16::<SignatureScheme>::deser(raw)?,
         })
+    }
+}
+
+impl RawSize for SignatureAlgorithms {
+    fn size(&self) -> usize {
+        self.supported_signature_algorithms.size()
+    }
+}
+
+impl RawSer for SignatureAlgorithms {
+    fn ser(&self) -> Box<[u8]> {
+        self.supported_signature_algorithms.ser()
     }
 }

@@ -295,6 +295,7 @@ name = "tls"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crypt",
  "strum",
  "strum_macros",
  "tracing",

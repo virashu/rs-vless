@@ -13,3 +13,9 @@ impl RawDeser for u16 {
         Ok(u16::from_be_bytes([raw[0], raw[1]]))
     }
 }
+
+impl RawSer for u16 {
+    fn ser(&self) -> Box<[u8]> {
+        Box::new(self.to_be_bytes())
+    }
+}

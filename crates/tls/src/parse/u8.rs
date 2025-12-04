@@ -16,6 +16,6 @@ impl RawDeser for u8 {
 
 impl RawSer for u8 {
     fn ser(&self) -> Box<[u8]> {
-        Box::from(self.to_be_bytes())
+        Box::new(self.to_be_bytes())
     }
 }

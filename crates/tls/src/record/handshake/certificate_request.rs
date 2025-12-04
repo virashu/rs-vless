@@ -1,8 +1,7 @@
 use anyhow::Result;
 
+use super::extension::{SignatureAlgorithms, SignatureScheme, extension_types};
 use crate::parse::{DataVec8, DataVec16, RawSer, RawSize};
-
-use super::extension::{SignatureAlgorithms, SignatureScheme};
 
 #[derive(Clone, Debug)]
 pub enum CertificateRequestExtensionContent {
@@ -16,23 +15,34 @@ pub struct CertificateRequestExtension {
 
 impl RawSize for CertificateRequestExtension {
     fn size(&self) -> usize {
-        todo!()
+        match &self.content {
+            CertificateRequestExtensionContent::SignatureAlgorithms(s_a) => s_a.size(),
+        }
     }
 }
 
 impl RawSer for CertificateRequestExtension {
     fn ser(&self) -> Box<[u8]> {
-        todo!()
+        match &self.content {
+            CertificateRequestExtensionContent::SignatureAlgorithms(s_a) => {
+                let mut res = Vec::new();
+
+                res.extend(extension_types::SIGNATURE_ALGORITHMS.to_be_bytes());
+                res.extend(s_a.ser());
+
+                res.into_boxed_slice()
+            }
+        }
     }
 }
 
 impl CertificateRequestExtension {
-    pub fn new_signature_algorithms(signature_algorithms: &[SignatureScheme]) -> Self {
-        Self {
+    pub fn new_signature_algorithms(signature_algorithms: &[SignatureScheme]) -> Result<Self> {
+        Ok(Self {
             content: CertificateRequestExtensionContent::SignatureAlgorithms(SignatureAlgorithms {
-                supported_signature_algorithms: Box::from(signature_algorithms),
+                supported_signature_algorithms: DataVec16::try_from(signature_algorithms)?,
             }),
-        }
+        })
     }
 }
 

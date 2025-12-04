@@ -12,7 +12,7 @@ use server_hello::ServerHello;
 
 use anyhow::Result;
 
-use crate::parse::RawDeser;
+use crate::parse::{RawDeser, RawSer};
 
 pub mod handshake_types {
     pub const CLIENT_HELLO: u8 = 1;
@@ -79,10 +79,25 @@ impl Handshake {
                 let raw = s_h.to_raw();
                 let length = raw.len();
                 let length_bytes = TryInto::<u32>::try_into(length)
-                    .expect("Server hello size exceeds maximum u32 value")
+                    .expect("ServerHello size exceeds maximum u32 value")
                     .to_be_bytes();
 
                 res.push(handshake_types::SERVER_HELLO);
+                res.extend(&length_bytes[1..=3]);
+                res.extend(raw);
+
+                res.into_boxed_slice()
+            }
+            Handshake::EncryptedExtensions(e_e) => {
+                let mut res = Vec::new();
+
+                let raw = e_e.ser();
+                let length = raw.len();
+                let length_bytes = TryInto::<u32>::try_into(length)
+                    .expect("EncryptedExtensions size exceeds maximum u32 value")
+                    .to_be_bytes();
+
+                res.push(handshake_types::ENCRYPTED_EXTENSIONS);
                 res.extend(&length_bytes[1..=3]);
                 res.extend(raw);
 
@@ -94,7 +109,7 @@ impl Handshake {
                 let raw = c_r.to_raw();
                 let length = raw.len();
                 let length_bytes = TryInto::<u32>::try_into(length)
-                    .expect("Server hello size exceeds maximum u32 value")
+                    .expect("CertificateRequest size exceeds maximum u32 value")
                     .to_be_bytes();
 
                 res.push(handshake_types::CERTIFICATE_REQUEST);

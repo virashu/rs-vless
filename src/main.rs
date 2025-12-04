@@ -11,6 +11,7 @@ use tls::{
         handshake::{
             Handshake,
             certificate_request::{CertificateRequest, CertificateRequestExtension},
+            encrypted_extensions::EncryptedExtensions,
             extension::{KeyShareEntry, NamedGroup, SignatureScheme},
             server_hello::{ServerHello, ServerHelloExtension},
         },
@@ -35,7 +36,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     // ClientHello
 
     let record = TlsPlaintext::from_raw(&buf[..n])?;
-    let TlsContent::Handshake(Handshake::ClientHello(hello)) = record.record else {
+    let TlsContent::Handshake(Handshake::ClientHello(hello)) = record.fragment else {
         bail!("Not client hello");
     };
     let exts = OrganizedClientExtensions::organize(hello.extensions);
@@ -67,13 +68,21 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     let record = TlsPlaintext::new_handshake(s_h)?;
     conn.write_all(&record.to_raw())?;
 
+    // EncryptedExtensions
+
+    let e_e = Handshake::EncryptedExtensions(EncryptedExtensions::new());
+    let record = TlsPlaintext::new_handshake(e_e)?;
+    conn.write_all(&record.to_raw())?;
+
     // CertificateRequest
 
-    let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
-        CertificateRequestExtension::new_signature_algorithms(&[SignatureScheme::rsa_pkcs1_sha256]),
-    ])?);
-    let record = TlsPlaintext::new_handshake(c_r)?;
-    conn.write_all(&record.to_raw())?;
+    // let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
+    //     CertificateRequestExtension::new_signature_algorithms(&[
+    //         SignatureScheme::rsa_pkcs1_sha256,
+    //     ])?,
+    // ])?);
+    // let record = TlsPlaintext::new_handshake(c_r)?;
+    // conn.write_all(&record.to_raw())?;
 
     Ok(())
 }

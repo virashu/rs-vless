@@ -9,6 +9,13 @@ pub struct DataVec24<T> {
 }
 
 impl<T> DataVec24<T> {
+    pub fn new() -> Self {
+        Self {
+            length: 0,
+            inner: Box::new([]),
+        }
+    }
+
     pub fn into_inner(self) -> Box<[T]> {
         self.inner
     }

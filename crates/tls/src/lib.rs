@@ -1,4 +1,5 @@
 #![allow(clippy::missing_errors_doc)]
+#![allow(clippy::new_without_default)]
 #![forbid(clippy::unwrap_used)]
 
 pub mod cipher_suite;

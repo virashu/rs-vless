@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     macros::auto_from,
-    parse::{RawDeser, RawSize},
+    parse::{RawDeser, RawSer, RawSize},
 };
 
 auto_from! {
@@ -50,5 +50,11 @@ impl RawSize for SignatureScheme {
 impl RawDeser for SignatureScheme {
     fn deser(raw: &[u8]) -> Result<Self> {
         Ok(Self::from(u16::from_be_bytes([raw[0], raw[1]])))
+    }
+}
+
+impl RawSer for SignatureScheme {
+    fn ser(&self) -> Box<[u8]> {
+        u16::from(self).ser()
     }
 }

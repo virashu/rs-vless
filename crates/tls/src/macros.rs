@@ -53,3 +53,18 @@ macro_rules! auto_from {
     }
 }
 pub(crate) use auto_from;
+
+macro_rules! flat {
+    (
+        $( $elem:expr ),*
+    ) => {
+        {
+            let mut _t = Vec::new();
+            $(
+              _t.extend($elem);
+            )*
+            _t
+        }
+    };
+}
+pub(crate) use flat;

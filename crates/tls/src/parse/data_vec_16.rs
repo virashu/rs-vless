@@ -9,6 +9,13 @@ pub struct DataVec16<T> {
 }
 
 impl<T> DataVec16<T> {
+    pub fn new() -> Self {
+        Self {
+            length: 0,
+            inner: Box::new([]),
+        }
+    }
+
     pub fn into_inner(self) -> Box<[T]> {
         self.inner
     }
@@ -21,7 +28,7 @@ where
     type Error = anyhow::Error;
 
     fn try_from(value: &[T]) -> Result<Self, Self::Error> {
-        let length: usize = value.iter().map(|x| x.size()).sum();
+        let length: usize = value.iter().map(RawSize::size).sum();
         let length: u16 = length.try_into()?;
 
         Ok(Self {
