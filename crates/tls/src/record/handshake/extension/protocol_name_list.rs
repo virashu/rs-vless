@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::{
-    parse::{DataVec16, Parse},
+    parse::{DataVec16, RawDeser, RawSize},
     util::opaque_vec_8,
 };
 
@@ -12,14 +12,16 @@ pub struct ProtocolName {
     pub data: Box<[u8]>,
 }
 
-impl Parse for ProtocolName {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        let (size, data) = opaque_vec_8(raw);
-        Ok(Self { size, data })
-    }
-
+impl RawSize for ProtocolName {
     fn size(&self) -> usize {
         self.size
+    }
+}
+
+impl RawDeser for ProtocolName {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        let (size, data) = opaque_vec_8(raw);
+        Ok(Self { size, data })
     }
 }
 
@@ -30,7 +32,7 @@ pub struct ProtocolNameList {
 
 impl ProtocolNameList {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let protocol_name_list = DataVec16::<ProtocolName>::parse(raw)?.into_inner();
+        let protocol_name_list = DataVec16::<ProtocolName>::deser(raw)?.into_inner();
 
         Ok(Self { protocol_name_list })
     }

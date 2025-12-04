@@ -1,5 +1,7 @@
 use anyhow::Result;
 
+use crate::parse::{DataVec8, DataVec16, RawSer, RawSize};
+
 use super::extension::{SignatureAlgorithms, SignatureScheme};
 
 #[derive(Clone, Debug)]
@@ -10,6 +12,18 @@ pub enum CertificateRequestExtensionContent {
 #[derive(Clone, Debug)]
 pub struct CertificateRequestExtension {
     pub content: CertificateRequestExtensionContent,
+}
+
+impl RawSize for CertificateRequestExtension {
+    fn size(&self) -> usize {
+        todo!()
+    }
+}
+
+impl RawSer for CertificateRequestExtension {
+    fn ser(&self) -> Box<[u8]> {
+        todo!()
+    }
 }
 
 impl CertificateRequestExtension {
@@ -24,18 +38,16 @@ impl CertificateRequestExtension {
 
 #[derive(Clone, Debug)]
 pub struct CertificateRequest {
-    // 8bit
-    pub certificate_request_context: Box<[u8]>,
-    // 16bit
-    pub extensions: Box<[CertificateRequestExtension]>,
+    pub certificate_request_context: DataVec8<u8>,
+    pub extensions: DataVec16<CertificateRequestExtension>,
 }
 
 impl CertificateRequest {
-    pub fn new(extensions: &[CertificateRequestExtension]) -> Self {
-        Self {
-            certificate_request_context: Box::new([]),
-            extensions: Box::from(extensions),
-        }
+    pub fn new(extensions: &[CertificateRequestExtension]) -> Result<Self> {
+        Ok(Self {
+            certificate_request_context: DataVec8::new(),
+            extensions: DataVec16::try_from(extensions)?,
+        })
     }
 
     pub fn parse(raw: &[u8]) -> Result<Self> {
@@ -43,6 +55,11 @@ impl CertificateRequest {
     }
 
     pub fn to_raw(&self) -> Box<[u8]> {
-        todo!()
+        let mut res = Vec::new();
+
+        res.extend(self.certificate_request_context.ser());
+        res.extend(self.extensions.ser());
+
+        res.into_boxed_slice()
     }
 }

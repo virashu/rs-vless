@@ -1,4 +1,4 @@
-use crate::parse::{DataVec8, DataVec16, Parse};
+use crate::parse::{DataVec8, DataVec16, RawDeser, RawSize};
 
 #[derive(Clone, Debug)]
 pub struct PskIdentity {
@@ -9,9 +9,15 @@ pub struct PskIdentity {
     pub obfuscated_ticket_age: u32,
 }
 
-impl Parse for PskIdentity {
-    fn parse(raw: &[u8]) -> anyhow::Result<Self> {
-        let identity = DataVec16::<u8>::parse(raw)?;
+impl RawSize for PskIdentity {
+    fn size(&self) -> usize {
+        self.size
+    }
+}
+
+impl RawDeser for PskIdentity {
+    fn deser(raw: &[u8]) -> anyhow::Result<Self> {
+        let identity = DataVec16::<u8>::deser(raw)?;
         let size = identity.size();
         let obfuscated_ticket_age = u32::from_be_bytes(raw[size..(size + 4)].try_into()?);
 
@@ -20,10 +26,6 @@ impl Parse for PskIdentity {
             identity: identity.into_inner(),
             obfuscated_ticket_age,
         })
-    }
-
-    fn size(&self) -> usize {
-        self.size
     }
 }
 
@@ -37,8 +39,8 @@ pub struct PreSharedKeyExtensionClientHello {
 
 impl PreSharedKeyExtensionClientHello {
     pub fn parse(raw: &[u8]) -> anyhow::Result<Self> {
-        let identities = DataVec16::<PskIdentity>::parse(raw)?;
-        let binders = DataVec16::<DataVec8<u8>>::parse(&raw[identities.size()..])?;
+        let identities = DataVec16::<PskIdentity>::deser(raw)?;
+        let binders = DataVec16::<DataVec8<u8>>::deser(&raw[identities.size()..])?;
 
         Ok(Self {
             identities: identities.into_inner(),

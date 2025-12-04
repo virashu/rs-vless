@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::parse::{DataVec8, Parse};
+use crate::parse::{DataVec8, RawDeser};
 
 #[derive(Clone, Debug)]
 pub struct SupportedVersionsClientHello {
@@ -9,7 +9,7 @@ pub struct SupportedVersionsClientHello {
 
 impl SupportedVersionsClientHello {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let versions = DataVec8::<u16>::parse(raw)?.into_inner();
+        let versions = DataVec8::<u16>::deser(raw)?.into_inner();
 
         Ok(Self { versions })
     }

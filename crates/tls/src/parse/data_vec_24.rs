@@ -1,0 +1,61 @@
+use anyhow::Result;
+
+use super::{RawDeser, RawSer, RawSize};
+
+#[derive(Clone, Debug)]
+pub struct DataVec24<T> {
+    length: u32,
+    inner: Box<[T]>,
+}
+
+impl<T> DataVec24<T> {
+    pub fn into_inner(self) -> Box<[T]> {
+        self.inner
+    }
+}
+
+impl<T> RawSize for DataVec24<T> {
+    fn size(&self) -> usize {
+        self.length as usize + 3
+    }
+}
+
+impl<T> RawDeser for DataVec24<T>
+where
+    T: RawSize + RawDeser,
+{
+    fn deser(raw: &[u8]) -> Result<Self> {
+        let length = u32::from_be_bytes([0, raw[0], raw[1], raw[2]]);
+        let payload = &raw[3..];
+
+        let mut res = Vec::new();
+        let mut offset: usize = 0;
+        while offset < length as usize {
+            let el = T::deser(&payload[offset..])?;
+            offset += el.size();
+            res.push(el);
+        }
+
+        Ok(Self {
+            length,
+            inner: res.into_boxed_slice(),
+        })
+    }
+}
+
+impl<T> RawSer for DataVec24<T>
+where
+    T: RawSer,
+{
+    fn ser(&self) -> Box<[u8]> {
+        let mut res = Vec::new();
+
+        res.extend(self.length.to_be_bytes());
+
+        for elem in &self.inner {
+            res.extend(elem.ser());
+        }
+
+        res.into_boxed_slice()
+    }
+}

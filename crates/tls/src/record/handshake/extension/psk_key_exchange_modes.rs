@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::{
     macros::auto_try_from,
-    parse::{DataVec8, Parse},
+    parse::{DataVec8, RawDeser, RawSize},
 };
 
 auto_try_from! {
@@ -15,13 +15,15 @@ auto_try_from! {
     }
 }
 
-impl Parse for PskKeyExchangeMode {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        Self::try_from(raw[0])
-    }
-
+impl RawSize for PskKeyExchangeMode {
     fn size(&self) -> usize {
         1
+    }
+}
+
+impl RawDeser for PskKeyExchangeMode {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        Self::try_from(raw[0])
     }
 }
 
@@ -32,7 +34,7 @@ pub struct PskKeyExchangeModes {
 
 impl PskKeyExchangeModes {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let ke_modes = DataVec8::<PskKeyExchangeMode>::parse(raw)?.into_inner();
+        let ke_modes = DataVec8::<PskKeyExchangeMode>::deser(raw)?.into_inner();
 
         Ok(Self { ke_modes })
     }

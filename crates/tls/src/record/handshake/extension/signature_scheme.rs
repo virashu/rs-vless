@@ -1,6 +1,9 @@
 use anyhow::Result;
 
-use crate::{macros::auto_from, parse::Parse};
+use crate::{
+    macros::auto_from,
+    parse::{RawDeser, RawSize},
+};
 
 auto_from! {
     #[repr(u16)]
@@ -38,12 +41,14 @@ auto_from! {
     }
 }
 
-impl Parse for SignatureScheme {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        Ok(Self::from(u16::from_be_bytes([raw[0], raw[1]])))
-    }
-
+impl RawSize for SignatureScheme {
     fn size(&self) -> usize {
         2
+    }
+}
+
+impl RawDeser for SignatureScheme {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        Ok(Self::from(u16::from_be_bytes([raw[0], raw[1]])))
     }
 }

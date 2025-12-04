@@ -71,7 +71,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
         CertificateRequestExtension::new_signature_algorithms(&[SignatureScheme::rsa_pkcs1_sha256]),
-    ]));
+    ])?);
     let record = TlsPlaintext::new_handshake(c_r)?;
     conn.write_all(&record.to_raw())?;
 

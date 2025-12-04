@@ -1,29 +1,31 @@
 use anyhow::{Result, bail};
 
-use crate::parse::{DataVec16, Parse};
+use crate::parse::{DataVec16, RawDeser, RawSize};
 
 #[derive(Clone, Debug)]
 pub enum ServerName {
     HostName(Box<[u8]>),
 }
 
-impl Parse for ServerName {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        let name_type = raw[0];
-
-        Ok(match name_type {
-            0 => {
-                let data = DataVec16::<u8>::parse(&raw[1..])?.into_inner();
-                Self::HostName(data)
-            }
-            _ => bail!("Unknown ServerName type: {name_type}"),
-        })
-    }
-
+impl RawSize for ServerName {
     fn size(&self) -> usize {
         match self {
             ServerName::HostName(n) => n.len() + 2,
         }
+    }
+}
+
+impl RawDeser for ServerName {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        let name_type = raw[0];
+
+        Ok(match name_type {
+            0 => {
+                let data = DataVec16::<u8>::deser(&raw[1..])?.into_inner();
+                Self::HostName(data)
+            }
+            _ => bail!("Unknown ServerName type: {name_type}"),
+        })
     }
 }
 
@@ -41,7 +43,7 @@ impl ServerNameList {
         let mut server_name_list = Vec::new();
         let mut offset: usize = 0;
         while offset < length as usize {
-            let Ok(el) = ServerName::parse(&payload[offset..]) else {
+            let Ok(el) = ServerName::deser(&payload[offset..]) else {
                 break;
             };
             offset += el.size();

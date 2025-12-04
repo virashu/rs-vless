@@ -2,7 +2,7 @@ use anyhow::{Ok, Result};
 
 use crate::{
     macros::auto_try_from,
-    parse::{DataVec8, Parse},
+    parse::{DataVec8, RawDeser, RawSize},
 };
 
 auto_try_from! {
@@ -15,13 +15,15 @@ auto_try_from! {
     }
 }
 
-impl Parse for EcPointFormat {
-    fn parse(raw: &[u8]) -> Result<Self> {
-        Self::try_from(raw[0])
-    }
-
+impl RawSize for EcPointFormat {
     fn size(&self) -> usize {
         1
+    }
+}
+
+impl RawDeser for EcPointFormat {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        Self::try_from(raw[0])
     }
 }
 
@@ -32,7 +34,7 @@ pub struct EcPointFormats {
 
 impl EcPointFormats {
     pub fn parse(raw: &[u8]) -> Result<Self> {
-        let ec_point_format_list = DataVec8::<EcPointFormat>::parse(raw)?.into_inner();
+        let ec_point_format_list = DataVec8::<EcPointFormat>::deser(raw)?.into_inner();
 
         Ok(Self {
             ec_point_format_list,

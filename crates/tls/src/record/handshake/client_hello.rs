@@ -7,7 +7,7 @@ use super::extension::{
 };
 use crate::{
     cipher_suite::CipherSuite,
-    parse::Parse,
+    parse::{RawDeser, RawSize},
     util::{opaque_vec_8, opaque_vec_16},
 };
 
@@ -111,16 +111,18 @@ impl ClientHelloExtension {
     }
 }
 
-impl Parse for ClientHelloExtension {
-    fn parse(raw: &[u8]) -> Result<Self> {
+impl RawSize for ClientHelloExtension {
+    fn size(&self) -> usize {
+        self.length as usize + 4
+    }
+}
+
+impl RawDeser for ClientHelloExtension {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[2], raw[3]]);
         let content = ClientHelloExtensionContent::parse(raw)?;
 
         Ok(Self { length, content })
-    }
-
-    fn size(&self) -> usize {
-        self.length as usize + 4
     }
 }
 
@@ -135,8 +137,14 @@ pub struct ClientHello {
     pub extensions: Box<[ClientHelloExtension]>,
 }
 
-impl Parse for ClientHello {
-    fn parse(raw: &[u8]) -> Result<Self> {
+impl RawSize for ClientHello {
+    fn size(&self) -> usize {
+        self.length as usize + 3
+    }
+}
+
+impl RawDeser for ClientHello {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let length = u32::from_be_bytes([0, raw[0], raw[1], raw[2]]);
 
         let legacy_version = u16::from_be_bytes([raw[3], raw[4]]);
@@ -171,7 +179,7 @@ impl Parse for ClientHello {
         let mut parsed_length = 0;
         let mut extensions = Vec::new();
         while parsed_length < total_length {
-            match ClientHelloExtension::parse(&extensions_raw[parsed_length..]) {
+            match ClientHelloExtension::deser(&extensions_raw[parsed_length..]) {
                 Ok(ext) => {
                     tracing::trace!(
                         "Parsed extension: {} ({} bytes body)",
@@ -201,9 +209,5 @@ impl Parse for ClientHello {
             legacy_compression_methods,
             extensions: extensions.into_boxed_slice(),
         })
-    }
-
-    fn size(&self) -> usize {
-        self.length as usize + 3
     }
 }

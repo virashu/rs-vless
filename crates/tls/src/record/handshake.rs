@@ -12,7 +12,7 @@ use server_hello::ServerHello;
 
 use anyhow::Result;
 
-use crate::parse::Parse;
+use crate::parse::RawDeser;
 
 pub mod handshake_types {
     pub const CLIENT_HELLO: u8 = 1;
@@ -51,7 +51,7 @@ impl Handshake {
         let _length = u32::from_be_bytes([0, raw[1], raw[2], raw[3]]);
 
         Ok(match msg_type {
-            handshake_types::CLIENT_HELLO => Self::ClientHello(ClientHello::parse(data)?),
+            handshake_types::CLIENT_HELLO => Self::ClientHello(ClientHello::deser(data)?),
             handshake_types::SERVER_HELLO => todo!(),
             handshake_types::NEW_SESSION_TICKET => Self::NewSessionTicket,
             handshake_types::END_OF_EARLY_DATA => Self::EndOfEarlyData,

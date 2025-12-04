@@ -4,7 +4,7 @@ use super::extension::{
     KeyShareEntry, KeyShareServerHello, PreSharedKeyExtensionServerHello,
     SupportedVersionsServerHello, extension_types,
 };
-use crate::{cipher_suite::CipherSuite, parse::Parse};
+use crate::{cipher_suite::CipherSuite, parse::RawSize};
 
 #[derive(Clone, Debug)]
 pub enum ServerHelloExtensionContent {
