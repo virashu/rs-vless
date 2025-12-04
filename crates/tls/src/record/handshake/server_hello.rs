@@ -1,5 +1,79 @@
-use super::extension::ServerHelloExtension;
-use crate::CipherSuite;
+use anyhow::Result;
+
+use super::extension::{
+    KeyShareEntry, KeyShareServerHello, PreSharedKeyExtensionServerHello,
+    SupportedVersionsServerHello, extension_types,
+};
+use crate::{cipher_suite::CipherSuite, parse::Parse};
+
+#[derive(Clone, Debug)]
+pub enum ServerHelloExtensionContent {
+    /// ID: 41
+    PreSharedKey(PreSharedKeyExtensionServerHello),
+    /// ID: 43
+    SupportedVersions(SupportedVersionsServerHello),
+    /// ID: 51
+    KeyShare(KeyShareServerHello),
+}
+
+#[derive(Clone, Debug)]
+pub struct ServerHelloExtension {
+    length: u16,
+
+    pub content: ServerHelloExtensionContent,
+}
+
+impl ServerHelloExtension {
+    pub fn new_supported_versions(version: u16) -> Self {
+        Self {
+            length: 2,
+            content: ServerHelloExtensionContent::SupportedVersions(SupportedVersionsServerHello {
+                selected_version: version,
+            }),
+        }
+    }
+
+    pub fn new_key_share(share: KeyShareEntry) -> Result<Self> {
+        Ok(Self {
+            length: share.size().try_into()?,
+            content: ServerHelloExtensionContent::KeyShare(KeyShareServerHello {
+                server_share: share,
+            }),
+        })
+    }
+
+    pub fn length(&self) -> u16 {
+        self.length
+    }
+
+    pub fn size(&self) -> usize {
+        self.length as usize + 4
+    }
+
+    pub fn to_raw(&self) -> Box<[u8]> {
+        match &self.content {
+            ServerHelloExtensionContent::PreSharedKey(_e) => {
+                todo!()
+            }
+            ServerHelloExtensionContent::SupportedVersions(e) => [
+                extension_types::SUPPORTED_VERSIONS.to_be_bytes(),
+                self.length.to_be_bytes(),
+                e.selected_version.to_be_bytes(),
+            ]
+            .concat()
+            .into(),
+            ServerHelloExtensionContent::KeyShare(e) => {
+                let mut res = Vec::new();
+
+                res.extend(extension_types::KEY_SHARE.to_be_bytes());
+                res.extend(self.length.to_be_bytes());
+                res.extend(e.server_share.to_raw());
+
+                res.into_boxed_slice()
+            }
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ServerHello {

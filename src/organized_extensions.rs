@@ -1,7 +1,9 @@
-use tls::record::handshake::extension::{
-    ClientHelloExtension, ClientHelloExtensionContent, KeyShareClientHello,
-    PreSharedKeyExtensionClientHello, PskKeyExchangeModes, ServerNameList, SignatureAlgorithms,
-    StatusRequest, SupportedGroups,
+use tls::record::handshake::{
+    client_hello::{ClientHelloExtension, ClientHelloExtensionContent},
+    extension::{
+        KeyShareClientHello, PreSharedKeyExtensionClientHello, PskKeyExchangeModes, ServerNameList,
+        SignatureAlgorithms, StatusRequest, SupportedGroups,
+    },
 };
 
 pub struct OrganizedClientExtensions {

@@ -5,13 +5,14 @@ use std::{
     net::{TcpListener, TcpStream},
 };
 use tls::{
-    CipherSuite,
+    cipher_suite::TLS_AES_256_GCM_SHA348,
     record::{
         TlsContent, TlsPlaintext,
         handshake::{
             Handshake,
-            extension::{KeyShareEntry, NamedGroup, ServerHelloExtension},
-            server_hello::ServerHello,
+            certificate_request::CertificateRequest,
+            extension::{KeyShareEntry, NamedGroup},
+            server_hello::{ServerHello, ServerHelloExtension},
         },
     },
 };
@@ -31,63 +32,47 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     let mut buf = [0; 2800];
     let n = conn.read(&mut buf)?;
 
-    tracing::info!("Read {n} bytes");
+    // ClientHello
 
     let record = TlsPlaintext::from_raw(&buf[..n])?;
-
     let TlsContent::Handshake(Handshake::ClientHello(hello)) = record.record else {
         bail!("Not client hello");
     };
-
     let exts = OrganizedClientExtensions::organize(hello.extensions);
-
     let key_share = exts
         .key_share
         .ok_or(anyhow!("Missing key_share"))?
         .to_hashmap();
-    tracing::info!("{key_share:#?}");
-
-    // let server_name = exts.server_name.unwrap();
-    // let ServerName::HostName(name) = &server_name.server_name_list[0];
-    // let name = String::from_utf8_lossy(name.as_ref());
-    // tracing::info!(?name);
 
     let x25519_peer_pub = key_share
         .get(&NamedGroup::x25519)
         .ok_or(anyhow!("No x25519 key share"))?;
-
     let (x25519_pub, x25519_priv) = x25519::get_keypair();
-
     let x25519_shared = x25519::get_shared_key(x25519_priv, x25519_peer_pub.as_ref().try_into()?);
 
-    let key_share =
-        ServerHelloExtension::new_key_share(KeyShareEntry::new(NamedGroup::x25519, &x25519_pub))?;
+    // ServerHello
 
     let s_h = Handshake::ServerHello(ServerHello::new(
         RANDOM,
         &hello.legacy_session_id,
-        CipherSuite {
-            aead_algorithm: 0x13,
-            hkdf_hash: 0x02,
-        },
+        TLS_AES_256_GCM_SHA348,
         &[
             ServerHelloExtension::new_supported_versions(VERSION),
-            key_share,
+            ServerHelloExtension::new_key_share(KeyShareEntry::new(
+                NamedGroup::x25519,
+                &x25519_pub,
+            ))?,
         ],
     ));
-
     let record = TlsPlaintext::new_handshake(s_h)?;
-
-    // println!(
-    //     "{}",
-    //     record
-    //         .to_raw()
-    //         .iter()
-    //         .map(|x| format!("0x{x:02X?} "))
-    //         .collect::<String>()
-    // );
-
     conn.write_all(&record.to_raw())?;
+
+    // CertificateRequest
+
+    let c_r = Handshake::CertificateRequest(CertificateRequest::new());
+    let record = TlsPlaintext::new_handshake(c_r)?;
+    conn.write_all(&record.to_raw())?;
+
     Ok(())
 }
 

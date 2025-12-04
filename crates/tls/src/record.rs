@@ -1,12 +1,14 @@
 pub mod alert;
+pub mod application_data;
+pub mod change_cipher_spec;
 pub mod handshake;
+
+use alert::Alert;
+use handshake::Handshake;
 
 use anyhow::Result;
 
 use crate::LEGACY_VERSION_BYTES;
-
-use alert::Alert;
-use handshake::Handshake;
 
 pub mod content_types {
     pub const INVALID: u8 = 0;

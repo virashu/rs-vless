@@ -1,8 +1,13 @@
+pub mod certificate;
+pub mod certificate_request;
 pub mod client_hello;
+pub mod encrypted_extensions;
 pub mod extension;
 pub mod server_hello;
 
+use certificate_request::CertificateRequest;
 use client_hello::ClientHello;
+use encrypted_extensions::EncryptedExtensions;
 use server_hello::ServerHello;
 
 use anyhow::Result;
@@ -28,8 +33,8 @@ pub enum Handshake {
     ClientHello(ClientHello),
     ServerHello(ServerHello),
     EndOfEarlyData,
-    EncryptedExtensions,
-    CertificateRequest,
+    EncryptedExtensions(EncryptedExtensions),
+    CertificateRequest(CertificateRequest),
     Certificate,
     CertificateVerify,
     Finished,
@@ -50,9 +55,13 @@ impl Handshake {
             handshake_types::SERVER_HELLO => todo!(),
             handshake_types::NEW_SESSION_TICKET => Self::NewSessionTicket,
             handshake_types::END_OF_EARLY_DATA => Self::EndOfEarlyData,
-            handshake_types::ENCRYPTED_EXTENSIONS => Self::EncryptedExtensions,
+            handshake_types::ENCRYPTED_EXTENSIONS => {
+                Self::EncryptedExtensions(EncryptedExtensions::parse(data)?)
+            }
             handshake_types::CERTIFICATE => Self::Certificate,
-            handshake_types::CERTIFICATE_REQUEST => Self::CertificateRequest,
+            handshake_types::CERTIFICATE_REQUEST => {
+                Self::CertificateRequest(CertificateRequest::parse(data)?)
+            }
             handshake_types::CERTIFICATE_VERIFY => Self::CertificateVerify,
             handshake_types::FINISHED => Self::Finished,
             handshake_types::KEY_UPDATE => Self::KeyUpdate,
