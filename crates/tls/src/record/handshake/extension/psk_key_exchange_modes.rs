@@ -8,7 +8,7 @@ use crate::{
 auto_try_from! {
     #[repr(u8)]
     #[allow(non_camel_case_types)]
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug)]
     pub enum PskKeyExchangeMode {
         psk_ke = 0,
         psk_dhe_ke = 1,
@@ -25,7 +25,7 @@ impl Parse for PskKeyExchangeMode {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PskKeyExchangeModes {
     pub ke_modes: Box<[PskKeyExchangeMode]>,
 }

@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct CipherSuite {
     pub aead_algorithm: u8,
     pub hkdf_hash: u8,

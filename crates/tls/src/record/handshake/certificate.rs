@@ -1,5 +1,7 @@
+#[derive(Clone, Debug)]
 pub struct CertificateExtension {}
 
+#[derive(Clone, Debug)]
 pub enum CertificateEntryContent {
     /// ID: 0
     X509 {
@@ -13,6 +15,7 @@ pub enum CertificateEntryContent {
     },
 }
 
+#[derive(Clone, Debug)]
 struct CertificateEntry {
     pub content: CertificateEntryContent,
 
@@ -20,6 +23,7 @@ struct CertificateEntry {
     extensions: Box<[CertificateExtension]>,
 }
 
+#[derive(Clone, Debug)]
 struct Certificate {
     // 8bit
     certificate_request_context: Box<[u8]>,

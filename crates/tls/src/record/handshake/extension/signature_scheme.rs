@@ -5,7 +5,7 @@ use crate::{macros::auto_from, parse::Parse};
 auto_from! {
     #[repr(u16)]
     #[allow(non_camel_case_types)]
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug)]
     pub enum SignatureScheme {
         /* RSASSA-PKCS1-v1_5 algorithms */
         rsa_pkcs1_sha256 = 0x0401,

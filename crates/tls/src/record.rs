@@ -18,7 +18,7 @@ pub mod content_types {
     pub const APPLICATION_DATA: u8 = 23;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum TlsContent {
     Invalid,
     ChangeCipherSpec,
@@ -27,7 +27,7 @@ pub enum TlsContent {
     ApplicationData,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TlsPlaintext {
     length: u16,
     pub record: TlsContent,

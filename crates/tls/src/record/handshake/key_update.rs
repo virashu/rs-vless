@@ -4,6 +4,7 @@ pub enum KeyUpdateRequest {
     update_requested,
 }
 
+#[derive(Clone, Debug)]
 pub struct KeyUpdate {
     request_update: KeyUpdateRequest,
 }

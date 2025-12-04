@@ -3,7 +3,7 @@ use anyhow::Result;
 use super::named_group::NamedGroup;
 use crate::parse::{DataVec16, Parse};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SupportedGroups {
     pub named_group_list: Box<[NamedGroup]>,
 }

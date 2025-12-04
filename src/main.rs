@@ -10,8 +10,8 @@ use tls::{
         TlsContent, TlsPlaintext,
         handshake::{
             Handshake,
-            certificate_request::CertificateRequest,
-            extension::{KeyShareEntry, NamedGroup},
+            certificate_request::{CertificateRequest, CertificateRequestExtension},
+            extension::{KeyShareEntry, NamedGroup, SignatureScheme},
             server_hello::{ServerHello, ServerHelloExtension},
         },
     },
@@ -69,7 +69,9 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     // CertificateRequest
 
-    let c_r = Handshake::CertificateRequest(CertificateRequest::new());
+    let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
+        CertificateRequestExtension::new_signature_algorithms(&[SignatureScheme::rsa_pkcs1_sha256]),
+    ]));
     let record = TlsPlaintext::new_handshake(c_r)?;
     conn.write_all(&record.to_raw())?;
 

@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::parse::{DataVec8, Parse};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SupportedVersionsClientHello {
     pub versions: Box<[u16]>,
 }

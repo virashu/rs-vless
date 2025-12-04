@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[cfg_attr(feature = "trace", derive(strum_macros::AsRefStr))]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum ClientHelloExtensionContent {
     /// ID: 0
     ServerName(ServerNameList),
@@ -98,7 +98,7 @@ impl ClientHelloExtensionContent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ClientHelloExtension {
     length: u16,
 
@@ -124,7 +124,7 @@ impl Parse for ClientHelloExtension {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ClientHello {
     length: u32,
 

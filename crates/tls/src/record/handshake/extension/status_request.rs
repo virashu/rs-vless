@@ -2,7 +2,7 @@ use anyhow::{Result, bail};
 
 use crate::util::opaque_vec_16;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct StatusRequest {
     pub responder_id: Box<[u8]>,
     pub extensions: Box<[u8]>,

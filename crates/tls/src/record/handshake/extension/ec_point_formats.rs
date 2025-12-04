@@ -7,7 +7,7 @@ use crate::{
 
 auto_try_from! {
     #[repr(u8)]
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug)]
     pub enum EcPointFormat {
         Uncompressed = 0,
         Deprecated1 = 1,
@@ -25,7 +25,7 @@ impl Parse for EcPointFormat {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EcPointFormats {
     pub ec_point_format_list: Box<[EcPointFormat]>,
 }

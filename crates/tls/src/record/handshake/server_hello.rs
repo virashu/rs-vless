@@ -75,7 +75,7 @@ impl ServerHelloExtension {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ServerHello {
     pub random: Box<[u8; 32]>,
     pub legacy_session_id_echo: Box<[u8]>,

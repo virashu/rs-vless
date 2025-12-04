@@ -23,16 +23,7 @@ pub use psk_key_exchange_modes::PskKeyExchangeModes;
 pub use renegotiation_info::RenegotiationInfo;
 pub use server_name::{ServerName, ServerNameList};
 pub use signature_algorithms::SignatureAlgorithms;
+pub use signature_scheme::SignatureScheme;
 pub use status_request::StatusRequest;
 pub use supported_groups::SupportedGroups;
 pub use supported_versions::{SupportedVersionsClientHello, SupportedVersionsServerHello};
-
-#[derive(Debug)]
-pub enum CertificateRequestExtensionContent {
-    SignatureAlgorithms(SignatureAlgorithms),
-}
-
-#[derive(Debug)]
-pub struct CertificateRequestExtension {
-    pub content: CertificateRequestExtensionContent,
-}

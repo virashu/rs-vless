@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct EncryptedExtensions {}
 
 impl EncryptedExtensions {

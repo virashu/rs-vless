@@ -3,7 +3,7 @@ use anyhow::Result;
 use super::signature_scheme::SignatureScheme;
 use crate::parse::{DataVec16, Parse};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SignatureAlgorithms {
     pub supported_signature_algorithms: Box<[SignatureScheme]>,
 }

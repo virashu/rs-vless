@@ -4,7 +4,7 @@ use crate::macros::auto_try_from;
 
 auto_try_from! {
     #[repr(u8)]
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum AlertLevel {
         Warning = 1,
         Fatal = 2,
@@ -13,7 +13,7 @@ auto_try_from! {
 
 auto_try_from! {
     #[repr(u8)]
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug)]
     pub enum AlertDescription {
         CloseNotify = 0,
         UnexpectedMessage = 10,
@@ -46,7 +46,7 @@ auto_try_from! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct Alert {
     pub level: AlertLevel,
     pub description: AlertDescription,

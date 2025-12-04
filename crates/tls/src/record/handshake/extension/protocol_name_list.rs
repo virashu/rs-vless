@@ -5,7 +5,7 @@ use crate::{
     util::opaque_vec_8,
 };
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProtocolName {
     size: usize,
 
@@ -23,7 +23,7 @@ impl Parse for ProtocolName {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ProtocolNameList {
     pub protocol_name_list: Box<[ProtocolName]>,
 }

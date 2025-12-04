@@ -28,7 +28,7 @@ pub mod handshake_types {
     pub const MESSAGE_HASH: u8 = 254;
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Handshake {
     ClientHello(ClientHello),
     ServerHello(ServerHello),
@@ -76,16 +76,29 @@ impl Handshake {
             Handshake::ServerHello(s_h) => {
                 let mut res = Vec::new();
 
-                res.push(handshake_types::SERVER_HELLO);
-
                 let raw = s_h.to_raw();
                 let length = raw.len();
                 let length_bytes = TryInto::<u32>::try_into(length)
                     .expect("Server hello size exceeds maximum u32 value")
                     .to_be_bytes();
 
+                res.push(handshake_types::SERVER_HELLO);
                 res.extend(&length_bytes[1..=3]);
+                res.extend(raw);
 
+                res.into_boxed_slice()
+            }
+            Handshake::CertificateRequest(c_r) => {
+                let mut res = Vec::new();
+
+                let raw = c_r.to_raw();
+                let length = raw.len();
+                let length_bytes = TryInto::<u32>::try_into(length)
+                    .expect("Server hello size exceeds maximum u32 value")
+                    .to_be_bytes();
+
+                res.push(handshake_types::CERTIFICATE_REQUEST);
+                res.extend(&length_bytes[1..=3]);
                 res.extend(raw);
 
                 res.into_boxed_slice()
