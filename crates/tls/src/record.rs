@@ -117,7 +117,7 @@ pub struct TlsCiphertext {
 }
 
 impl TlsCiphertext {
-    pub fn encrypt(plain: &TlsPlaintext) -> Result<Self> {
+    pub fn encrypt(plain: &TlsPlaintext, key: [u8; 32], nonce: [u8; 12]) -> Result<Self> {
         let content = plain.fragment.ser();
         let content_type = plain.fragment.content_type();
         let padding: Vec<u8> = vec![];
@@ -127,11 +127,8 @@ impl TlsCiphertext {
         let length = plain.length + padding.len() as u16 + 1;
         let additional_data = flat!([23], LEGACY_VERSION_BYTES, length.to_be_bytes());
 
-        let write_key = [0; 32];
-        let nonce = [0; 16];
-
         let encrypted =
-            crypt::aead_aes_256_gcm::encrypt(&write_key, &nonce, &plaintext, &additional_data)?.0;
+            crypt::aead_aes_256_gcm::encrypt(&key, &nonce, &plaintext, &additional_data)?.0;
 
         Ok(Self {
             length,

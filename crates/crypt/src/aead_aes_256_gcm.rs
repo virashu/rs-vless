@@ -142,7 +142,7 @@ pub fn encrypt(
 
     let y_0: [u8; 16] = if iv.len() == 12 {
         let mut x = [0; 16];
-        x.copy_from_slice(iv);
+        x[..12].copy_from_slice(iv);
         x[12..].copy_from_slice(&1u32.to_be_bytes());
         x
     } else {
