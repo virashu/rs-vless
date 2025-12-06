@@ -127,13 +127,20 @@ impl TlsCiphertext {
         let length = plain.length + padding.len() as u16 + 1;
         let additional_data = flat!([23], LEGACY_VERSION_BYTES, length.to_be_bytes());
 
-        let write_key = todo!();
-        let nonce = todo!();
+        let write_key = [0; 32];
+        let nonce = [0; 16];
 
-        let AEADEncrypted =
-            crypt::aead_aes_256_gcm::encrypt(write_key, nonce, &plaintext, &additional_data);
+        let encrypted =
+            crypt::aead_aes_256_gcm::encrypt(&write_key, &nonce, &plaintext, &additional_data)?.0;
 
-        todo!()
+        Ok(Self {
+            length,
+            encrypted_record: encrypted,
+        })
+    }
+
+    pub fn to_raw(&self) -> Box<[u8]> {
+        self.ser()
     }
 }
 
@@ -149,5 +156,17 @@ impl RawDeser for TlsCiphertext {
             length,
             encrypted_record,
         })
+    }
+}
+
+impl RawSer for TlsCiphertext {
+    fn ser(&self) -> Box<[u8]> {
+        flat!(
+            [23],
+            LEGACY_VERSION_BYTES,
+            self.length.to_be_bytes(),
+            &self.encrypted_record
+        )
+        .into_boxed_slice()
     }
 }

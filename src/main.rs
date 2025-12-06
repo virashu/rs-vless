@@ -7,7 +7,7 @@ use std::{
 use tls::{
     cipher_suite::TLS_AES_256_GCM_SHA348,
     record::{
-        TlsContent, TlsPlaintext,
+        TlsCiphertext, TlsContent, TlsPlaintext,
         handshake::{
             Handshake,
             certificate_request::{CertificateRequest, CertificateRequestExtension},
@@ -72,7 +72,8 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     let e_e = Handshake::EncryptedExtensions(EncryptedExtensions::new());
     let record = TlsPlaintext::new_handshake(e_e)?;
-    conn.write_all(&record.to_raw())?;
+    let encrypted = TlsCiphertext::encrypt(&record)?;
+    conn.write_all(&encrypted.to_raw())?;
 
     // CertificateRequest
 
