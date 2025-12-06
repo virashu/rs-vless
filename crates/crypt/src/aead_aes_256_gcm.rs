@@ -63,15 +63,26 @@ fn x_i(
 
     match i {
         0 => [0; 16],
+
         _ if (1..m).contains(&i) => mul(xor(x(i - 1), a[i as usize - 1]), *hash_key),
+
         _ if m == i => mul(xor(x(m - 1), a[m as usize - 1]), *hash_key),
+
         _ if ((m + 1)..(m + n)).contains(&i) => mul(xor(x(i - 1), c[i as usize - 1]), *hash_key),
-        _ if m + n == i => mul(xor(x(m + n - 1), a[m as usize - 1]), *hash_key),
+
+        _ if m + n == i => mul(
+            xor(
+                x(m + n - 1),
+                if m != 0 { c[m as usize - 1] } else { [0; 16] },
+            ),
+            *hash_key,
+        ),
+
         _ if m + n + 1 == i => {
             let a_len: [u8; 8] = u64::from(m + v).to_be_bytes();
             let c_len: [u8; 8] = u64::from(n + u).to_be_bytes();
             let len: [u8; 16] = [a_len, c_len].concat().try_into().unwrap();
-            mul(xor(x(m + n - 1), len), *hash_key)
+            mul(xor(x(m + n), len), *hash_key)
         }
 
         _ => unimplemented!(),
@@ -122,11 +133,6 @@ pub fn encrypt(
 ) -> Result<(Box<[u8]>, Box<[u8]>)> {
     let p_bits = plaintext.len() * 8;
     let n = (p_bits / 128) as u32;
-    // let u = (p_bits % 128) as u32;
-
-    let a_bits = additional_data.len() * 8;
-    // let m = (a_bits / 128) as u32;
-    // let v = (a_bits % 128) as u32;
 
     let (blocks, remainder) = plaintext.as_chunks::<16>();
 
@@ -135,7 +141,10 @@ pub fn encrypt(
     let hash_key: [u8; 16] = (*aes.encrypt(&[0; 16])).try_into()?;
 
     let y_0: [u8; 16] = if iv.len() == 12 {
-        todo!()
+        let mut x = [0; 16];
+        x.copy_from_slice(iv);
+        x[12..].copy_from_slice(&1u32.to_be_bytes());
+        x
     } else {
         g_hash(&hash_key, &[], iv)
     };
