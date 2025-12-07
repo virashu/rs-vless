@@ -4,7 +4,7 @@ pub struct CipherSuite {
     pub hkdf_hash: u8,
 }
 
-pub const TLS_AES_256_GCM_SHA348: CipherSuite = CipherSuite {
+pub const TLS_AES_256_GCM_SHA384: CipherSuite = CipherSuite {
     aead_algorithm: 0x13,
     hkdf_hash: 0x02,
 };

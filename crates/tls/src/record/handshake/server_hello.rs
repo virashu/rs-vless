@@ -24,6 +24,15 @@ pub struct ServerHelloExtension {
 }
 
 impl ServerHelloExtension {
+    pub fn new_pre_shared_key(selected_identity: u16) -> Self {
+        Self {
+            length: 2,
+            content: ServerHelloExtensionContent::PreSharedKey(PreSharedKeyExtensionServerHello {
+                selected_identity,
+            }),
+        }
+    }
+
     pub fn new_supported_versions(version: u16) -> Self {
         Self {
             length: 2,
@@ -52,9 +61,13 @@ impl ServerHelloExtension {
 
     pub fn to_raw(&self) -> Box<[u8]> {
         match &self.content {
-            ServerHelloExtensionContent::PreSharedKey(_e) => {
-                todo!()
-            }
+            ServerHelloExtensionContent::PreSharedKey(e) => [
+                extension_types::PRE_SHARED_KEY.to_be_bytes(),
+                self.length.to_be_bytes(),
+                e.selected_identity.to_be_bytes(),
+            ]
+            .concat()
+            .into(),
             ServerHelloExtensionContent::SupportedVersions(e) => [
                 extension_types::SUPPORTED_VERSIONS.to_be_bytes(),
                 self.length.to_be_bytes(),
