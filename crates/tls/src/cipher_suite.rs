@@ -1,10 +1,5 @@
 #[derive(Clone, Copy, Debug)]
-pub struct CipherSuite {
-    pub aead_algorithm: u8,
-    pub hkdf_hash: u8,
-}
+pub struct CipherSuite(pub u16);
 
-pub const TLS_AES_256_GCM_SHA384: CipherSuite = CipherSuite {
-    aead_algorithm: 0x13,
-    hkdf_hash: 0x02,
-};
+pub const TLS_AES_128_GCM_SHA256: CipherSuite = CipherSuite(0x13_01);
+pub const TLS_AES_256_GCM_SHA384: CipherSuite = CipherSuite(0x13_02);

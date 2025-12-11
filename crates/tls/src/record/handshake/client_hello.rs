@@ -163,10 +163,7 @@ impl RawDeser for ClientHello {
         offset += size;
         let cipher_suites = cipher_suites_raw
             .chunks(2)
-            .map(|x| CipherSuite {
-                aead_algorithm: x[0],
-                hkdf_hash: x[1],
-            })
+            .map(|x| CipherSuite(u16::from_be_bytes([x[0], x[1]])))
             .collect();
 
         let (size, legacy_compression_methods) = opaque_vec_8(&raw[offset..]);

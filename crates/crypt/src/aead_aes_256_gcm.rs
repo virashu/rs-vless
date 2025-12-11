@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Result, bail};
 
 use crate::aes::{Aes, Aes256Cipher};
 

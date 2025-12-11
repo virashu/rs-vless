@@ -56,7 +56,7 @@ impl Handshake {
             handshake_types::NEW_SESSION_TICKET => Self::NewSessionTicket,
             handshake_types::END_OF_EARLY_DATA => Self::EndOfEarlyData,
             handshake_types::ENCRYPTED_EXTENSIONS => {
-                Self::EncryptedExtensions(EncryptedExtensions::parse(data)?)
+                Self::EncryptedExtensions(EncryptedExtensions::deser(data)?)
             }
             handshake_types::CERTIFICATE => Self::Certificate,
             handshake_types::CERTIFICATE_REQUEST => {

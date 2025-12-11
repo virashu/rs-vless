@@ -14,14 +14,14 @@ pub enum CertificateEntryContent {
 }
 
 #[derive(Clone, Debug)]
-struct CertificateEntry {
+pub struct CertificateEntry {
     pub content: CertificateEntryContent,
 
-    extensions: DataVec16<CertificateExtension>,
+    pub extensions: DataVec16<CertificateExtension>,
 }
 
 #[derive(Clone, Debug)]
-struct Certificate {
-    certificate_request_context: DataVec8<u8>,
-    certificate_list: DataVec24<CertificateEntry>,
+pub struct Certificate {
+    pub certificate_request_context: DataVec8<u8>,
+    pub certificate_list: DataVec24<CertificateEntry>,
 }

@@ -8,6 +8,8 @@ use crate::{cipher_suite::CipherSuite, parse::RawSize};
 
 #[derive(Clone, Debug)]
 pub enum ServerHelloExtensionContent {
+    /// ID: 23
+    ExtendedMainSecret,
     /// ID: 41
     PreSharedKey(PreSharedKeyExtensionServerHello),
     /// ID: 43
@@ -24,6 +26,13 @@ pub struct ServerHelloExtension {
 }
 
 impl ServerHelloExtension {
+    pub fn new_extended_main_secret() -> Self {
+        Self {
+            length: 0,
+            content: ServerHelloExtensionContent::ExtendedMainSecret,
+        }
+    }
+
     pub fn new_pre_shared_key(selected_identity: u16) -> Self {
         Self {
             length: 2,
@@ -61,6 +70,11 @@ impl ServerHelloExtension {
 
     pub fn to_raw(&self) -> Box<[u8]> {
         match &self.content {
+            ServerHelloExtensionContent::ExtendedMainSecret => {
+                [extension_types::EXTENDED_MAIN_SECRET.to_be_bytes(), [0, 0]]
+                    .concat()
+                    .into()
+            }
             ServerHelloExtensionContent::PreSharedKey(e) => [
                 extension_types::PRE_SHARED_KEY.to_be_bytes(),
                 self.length.to_be_bytes(),
@@ -122,8 +136,7 @@ impl ServerHello {
         res.extend((self.legacy_session_id_echo.len() as u8).to_be_bytes());
         res.extend(self.legacy_session_id_echo.as_ref());
 
-        res.push(self.cipher_suite.aead_algorithm);
-        res.push(self.cipher_suite.hkdf_hash);
+        res.extend(self.cipher_suite.0.to_be_bytes());
 
         res.push(0);
 

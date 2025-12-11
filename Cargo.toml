@@ -17,5 +17,5 @@ num-bigint = "0.4.6"
 members = [".", "crates/*"]
 
 [workspace.dependencies]
-anyhow = "1.0.100"
+anyhow = { version = "1.0.100", features = ["backtrace"] }
 tracing = "0.1.41"
