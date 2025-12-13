@@ -32,8 +32,8 @@ pub struct EcPointFormats {
     pub ec_point_format_list: Box<[EcPointFormat]>,
 }
 
-impl EcPointFormats {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for EcPointFormats {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let ec_point_format_list = DataVec8::<EcPointFormat>::deser(raw)?.into_inner();
 
         Ok(Self {

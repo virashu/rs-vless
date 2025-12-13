@@ -8,8 +8,8 @@ pub struct SupportedGroups {
     pub named_group_list: Box<[NamedGroup]>,
 }
 
-impl SupportedGroups {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for SupportedGroups {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let named_group_list = DataVec16::<NamedGroup>::deser(raw)?.into_inner();
 
         Ok(Self { named_group_list })

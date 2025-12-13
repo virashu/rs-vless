@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::macros::auto_try_from;
+use crate::{macros::auto_try_from, parse::RawDeser};
 
 auto_try_from! {
     #[repr(u8)]
@@ -52,8 +52,8 @@ pub struct Alert {
     pub description: AlertDescription,
 }
 
-impl Alert {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+impl RawDeser for Alert {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let level = AlertLevel::try_from(raw[0])?;
         let description = AlertDescription::try_from(raw[1])?;
 

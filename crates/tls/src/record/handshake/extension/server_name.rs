@@ -34,8 +34,8 @@ pub struct ServerNameList {
     pub server_name_list: Box<[ServerName]>,
 }
 
-impl ServerNameList {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for ServerNameList {
+    fn deser(raw: &[u8]) -> Result<Self> {
         // TODO: Fix implementation
         let length = u16::from_be_bytes([raw[0], raw[1]]);
         let payload = &raw[2..];

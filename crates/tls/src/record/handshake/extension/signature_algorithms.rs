@@ -8,14 +8,6 @@ pub struct SignatureAlgorithms {
     pub supported_signature_algorithms: DataVec16<SignatureScheme>,
 }
 
-impl SignatureAlgorithms {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
-        Ok(Self {
-            supported_signature_algorithms: DataVec16::<SignatureScheme>::deser(raw)?,
-        })
-    }
-}
-
 impl RawSize for SignatureAlgorithms {
     fn size(&self) -> usize {
         self.supported_signature_algorithms.size()
@@ -25,5 +17,13 @@ impl RawSize for SignatureAlgorithms {
 impl RawSer for SignatureAlgorithms {
     fn ser(&self) -> Box<[u8]> {
         self.supported_signature_algorithms.ser()
+    }
+}
+
+impl RawDeser for SignatureAlgorithms {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        Ok(Self {
+            supported_signature_algorithms: DataVec16::<SignatureScheme>::deser(raw)?,
+        })
     }
 }

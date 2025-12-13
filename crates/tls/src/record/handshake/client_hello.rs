@@ -49,48 +49,48 @@ pub enum ClientHelloExtensionContent {
     RenegotiationInfo(RenegotiationInfo),
 }
 
-impl ClientHelloExtensionContent {
-    fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for ClientHelloExtensionContent {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let extension_type = u16::from_be_bytes([raw[0], raw[1]]);
         let data = &raw[4..];
 
         Ok(match extension_type {
             extension_types::SERVER_NAME => {
-                Self::ServerName(ServerNameList::parse(data).context("ServerName")?)
+                Self::ServerName(ServerNameList::deser(data).context("ServerName")?)
             }
             extension_types::STATUS_REQUEST => {
-                Self::StatusRequest(StatusRequest::parse(data).context("StatusRequest")?)
+                Self::StatusRequest(StatusRequest::deser(data).context("StatusRequest")?)
             }
             extension_types::SUPPORTED_GROUPS => {
-                Self::SupportedGroups(SupportedGroups::parse(data).context("SupportedGroups")?)
+                Self::SupportedGroups(SupportedGroups::deser(data).context("SupportedGroups")?)
             }
             extension_types::EC_POINT_FORMATS => {
-                Self::EcPointFormats(EcPointFormats::parse(data).context("EcPointFormats")?)
+                Self::EcPointFormats(EcPointFormats::deser(data).context("EcPointFormats")?)
             }
             extension_types::SIGNATURE_ALGORITHMS => Self::SignatureAlgorithms(
-                SignatureAlgorithms::parse(data).context("SignatureAlgorigthms")?,
+                SignatureAlgorithms::deser(data).context("SignatureAlgorigthms")?,
             ),
             extension_types::APPLICATION_LAYER_PROTOCOL_NEGOTIATION => {
                 Self::ApplicationLayerProtocolNegotiation(
-                    ProtocolNameList::parse(data).context("ALPNegotiation")?,
+                    ProtocolNameList::deser(data).context("ALPNegotiation")?,
                 )
             }
             18 => Self::SignedCertificateTimestamp,
             extension_types::EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
             extension_types::SESSION_TICKET => Self::SessionTicket(),
             extension_types::PRE_SHARED_KEY => {
-                Self::PreSharedKey(PreSharedKeyExtensionClientHello::parse(data)?)
+                Self::PreSharedKey(PreSharedKeyExtensionClientHello::deser(data)?)
             }
             extension_types::SUPPORTED_VERSIONS => {
-                Self::SupportedVersions(SupportedVersionsClientHello::parse(data)?)
+                Self::SupportedVersions(SupportedVersionsClientHello::deser(data)?)
             }
             extension_types::PSK_KEY_EXCHANGE_MODES => {
-                Self::PskKeyExchangeModes(PskKeyExchangeModes::parse(data)?)
+                Self::PskKeyExchangeModes(PskKeyExchangeModes::deser(data)?)
             }
             extension_types::POST_HANDSHAKE_AUTH => Self::PostHandshakeAuth,
-            extension_types::KEY_SHARE => Self::KeyShare(KeyShareClientHello::parse(data)?),
+            extension_types::KEY_SHARE => Self::KeyShare(KeyShareClientHello::deser(data)?),
             extension_types::RENEGOTIATION_INFO => {
-                Self::RenegotiationInfo(RenegotiationInfo::parse(data)?)
+                Self::RenegotiationInfo(RenegotiationInfo::deser(data)?)
             }
 
             _ => bail!("Unknown extension type: {extension_type}"),
@@ -120,7 +120,7 @@ impl RawSize for ClientHelloExtension {
 impl RawDeser for ClientHelloExtension {
     fn deser(raw: &[u8]) -> Result<Self> {
         let length = u16::from_be_bytes([raw[2], raw[3]]);
-        let content = ClientHelloExtensionContent::parse(raw)?;
+        let content = ClientHelloExtensionContent::deser(raw)?;
 
         Ok(Self { length, content })
     }

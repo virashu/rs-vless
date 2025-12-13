@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 
 use super::named_group::NamedGroup;
-use crate::parse::{DataVec16, RawDeser, RawSize};
+use crate::parse::{DataVec16, RawDeser, RawSer, RawSize};
 
 #[derive(Clone, Debug)]
 pub struct KeyShareEntry {
@@ -21,8 +21,16 @@ impl KeyShareEntry {
             key_exchange: Box::from(key),
         }
     }
+}
 
-    pub fn to_raw(&self) -> Box<[u8]> {
+impl RawSize for KeyShareEntry {
+    fn size(&self) -> usize {
+        self.size + 2
+    }
+}
+
+impl RawSer for KeyShareEntry {
+    fn ser(&self) -> Box<[u8]> {
         let mut res = Vec::new();
 
         let group: u16 = (&self.group).into();
@@ -34,12 +42,6 @@ impl KeyShareEntry {
         res.extend(&self.key_exchange);
 
         res.into_boxed_slice()
-    }
-}
-
-impl RawSize for KeyShareEntry {
-    fn size(&self) -> usize {
-        self.size + 2
     }
 }
 
@@ -62,18 +64,20 @@ pub struct KeyShareClientHello {
 }
 
 impl KeyShareClientHello {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
-        let client_shares = DataVec16::<KeyShareEntry>::deser(raw)?.into_inner();
-
-        Ok(Self { client_shares })
-    }
-
     pub fn to_hashmap(&self) -> HashMap<NamedGroup, Box<[u8]>> {
         self.client_shares
             .iter()
             .cloned()
             .map(|share| (share.group, share.key_exchange))
             .collect()
+    }
+}
+
+impl RawDeser for KeyShareClientHello {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        let client_shares = DataVec16::<KeyShareEntry>::deser(raw)?.into_inner();
+
+        Ok(Self { client_shares })
     }
 }
 

@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::extension::{SignatureAlgorithms, SignatureScheme, extension_types};
-use crate::parse::{DataVec8, DataVec16, RawSer, RawSize};
+use crate::parse::{DataVec8, DataVec16, RawDeser, RawSer, RawSize};
 
 #[derive(Clone, Debug)]
 pub enum CertificateRequestExtensionContent {
@@ -59,12 +59,16 @@ impl CertificateRequest {
             extensions: DataVec16::try_from(extensions)?,
         })
     }
+}
 
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for CertificateRequest {
+    fn deser(raw: &[u8]) -> Result<Self> {
         todo!()
     }
+}
 
-    pub fn to_raw(&self) -> Box<[u8]> {
+impl RawSer for CertificateRequest {
+    fn ser(&self) -> Box<[u8]> {
         let mut res = Vec::new();
 
         res.extend(self.certificate_request_context.ser());

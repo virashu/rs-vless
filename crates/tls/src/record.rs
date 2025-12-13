@@ -49,7 +49,7 @@ impl RawSer for TlsContent {
             TlsContent::Invalid => todo!(),
             TlsContent::ChangeCipherSpec => todo!(),
             TlsContent::Alert(alert) => todo!(),
-            TlsContent::Handshake(handshake) => handshake.to_raw(),
+            TlsContent::Handshake(handshake) => handshake.ser(),
             TlsContent::ApplicationData => todo!(),
         }
     }
@@ -84,8 +84,8 @@ impl TlsPlaintext {
         let record = match content_type {
             content_types::INVALID => TlsContent::Invalid,
             content_types::CHANGE_CIPHER_SPEC => TlsContent::ChangeCipherSpec,
-            content_types::ALERT => TlsContent::Alert(Alert::from_raw(data)?),
-            content_types::HANDSHAKE => TlsContent::Handshake(Handshake::from_raw(data)?),
+            content_types::ALERT => TlsContent::Alert(Alert::deser(data)?),
+            content_types::HANDSHAKE => TlsContent::Handshake(Handshake::deser(data)?),
             content_types::APPLICATION_DATA => TlsContent::ApplicationData,
 
             _ => todo!(),
@@ -99,7 +99,7 @@ impl TlsPlaintext {
 
     pub fn new_handshake(handshake: Handshake) -> Result<Self> {
         Ok(Self {
-            length: handshake.to_raw().len().try_into()?,
+            length: handshake.ser().len().try_into()?,
             fragment: TlsContent::Handshake(handshake),
         })
     }

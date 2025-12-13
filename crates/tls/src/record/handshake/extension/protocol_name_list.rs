@@ -30,8 +30,8 @@ pub struct ProtocolNameList {
     pub protocol_name_list: Box<[ProtocolName]>,
 }
 
-impl ProtocolNameList {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for ProtocolNameList {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let protocol_name_list = DataVec16::<ProtocolName>::deser(raw)?.into_inner();
 
         Ok(Self { protocol_name_list })

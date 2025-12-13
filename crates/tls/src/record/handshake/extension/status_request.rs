@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 
-use crate::util::opaque_vec_16;
+use crate::{parse::RawDeser, util::opaque_vec_16};
 
 #[derive(Clone, Debug)]
 pub struct StatusRequest {
@@ -8,8 +8,8 @@ pub struct StatusRequest {
     pub extensions: Box<[u8]>,
 }
 
-impl StatusRequest {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for StatusRequest {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let status_type = raw[0];
         if status_type != 1 {
             bail!("Status type is not 1");

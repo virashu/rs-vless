@@ -4,7 +4,10 @@ use super::extension::{
     KeyShareEntry, KeyShareServerHello, PreSharedKeyExtensionServerHello,
     SupportedVersionsServerHello, extension_types,
 };
-use crate::{cipher_suite::CipherSuite, parse::RawSize};
+use crate::{
+    cipher_suite::CipherSuite,
+    parse::{RawSer, RawSize},
+};
 
 #[derive(Clone, Debug)]
 pub enum ServerHelloExtensionContent {
@@ -63,12 +66,16 @@ impl ServerHelloExtension {
     pub fn length(&self) -> u16 {
         self.length
     }
+}
 
-    pub fn size(&self) -> usize {
+impl RawSize for ServerHelloExtension {
+    fn size(&self) -> usize {
         self.length as usize + 4
     }
+}
 
-    pub fn to_raw(&self) -> Box<[u8]> {
+impl RawSer for ServerHelloExtension {
+    fn ser(&self) -> Box<[u8]> {
         match &self.content {
             ServerHelloExtensionContent::ExtendedMainSecret => {
                 [extension_types::EXTENDED_MAIN_SECRET.to_be_bytes(), [0, 0]]
@@ -94,7 +101,7 @@ impl ServerHelloExtension {
 
                 res.extend(extension_types::KEY_SHARE.to_be_bytes());
                 res.extend(self.length.to_be_bytes());
-                res.extend(e.server_share.to_raw());
+                res.extend(e.server_share.ser());
 
                 res.into_boxed_slice()
             }
@@ -124,9 +131,11 @@ impl ServerHello {
             extensions: Box::from(extensions.to_owned()),
         }
     }
+}
 
+impl RawSer for ServerHello {
     #[allow(clippy::cast_possible_truncation)]
-    pub fn to_raw(&self) -> Box<[u8]> {
+    fn ser(&self) -> Box<[u8]> {
         let mut res = Vec::new();
 
         res.extend([0x03, 0x03]);
@@ -142,11 +151,7 @@ impl ServerHello {
 
         let extensions_length = self.extensions.iter().fold(0, |acc, e| acc + e.size()) as u16;
         res.extend(extensions_length.to_be_bytes());
-        res.extend(
-            self.extensions
-                .iter()
-                .flat_map(ServerHelloExtension::to_raw),
-        );
+        res.extend(self.extensions.iter().flat_map(ServerHelloExtension::ser));
 
         res.into_boxed_slice()
     }

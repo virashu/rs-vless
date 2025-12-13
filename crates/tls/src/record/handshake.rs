@@ -44,8 +44,8 @@ pub enum Handshake {
     MessageHash,
 }
 
-impl Handshake {
-    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+impl RawDeser for Handshake {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let msg_type = raw[0];
         let data = &raw[1..];
         let _length = u32::from_be_bytes([0, raw[1], raw[2], raw[3]]);
@@ -60,7 +60,7 @@ impl Handshake {
             }
             handshake_types::CERTIFICATE => Self::Certificate,
             handshake_types::CERTIFICATE_REQUEST => {
-                Self::CertificateRequest(CertificateRequest::parse(data)?)
+                Self::CertificateRequest(CertificateRequest::deser(data)?)
             }
             handshake_types::CERTIFICATE_VERIFY => Self::CertificateVerify,
             handshake_types::FINISHED => Self::Finished,
@@ -70,13 +70,15 @@ impl Handshake {
             _ => todo!("{msg_type}"),
         })
     }
+}
 
-    pub fn to_raw(&self) -> Box<[u8]> {
+impl RawSer for Handshake {
+    fn ser(&self) -> Box<[u8]> {
         match self {
             Handshake::ServerHello(s_h) => {
                 let mut res = Vec::new();
 
-                let raw = s_h.to_raw();
+                let raw = s_h.ser();
                 let length = raw.len();
                 let length_bytes = TryInto::<u32>::try_into(length)
                     .expect("ServerHello size exceeds maximum u32 value")
@@ -106,7 +108,7 @@ impl Handshake {
             Handshake::CertificateRequest(c_r) => {
                 let mut res = Vec::new();
 
-                let raw = c_r.to_raw();
+                let raw = c_r.ser();
                 let length = raw.len();
                 let length_bytes = TryInto::<u32>::try_into(length)
                     .expect("CertificateRequest size exceeds maximum u32 value")

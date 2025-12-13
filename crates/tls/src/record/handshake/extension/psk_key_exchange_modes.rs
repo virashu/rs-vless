@@ -32,8 +32,8 @@ pub struct PskKeyExchangeModes {
     pub ke_modes: Box<[PskKeyExchangeMode]>,
 }
 
-impl PskKeyExchangeModes {
-    pub fn parse(raw: &[u8]) -> Result<Self> {
+impl RawDeser for PskKeyExchangeModes {
+    fn deser(raw: &[u8]) -> Result<Self> {
         let ke_modes = DataVec8::<PskKeyExchangeMode>::deser(raw)?.into_inner();
 
         Ok(Self { ke_modes })
