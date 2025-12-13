@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail};
-use crypt::{hash::sha::Sha1, x25519};
+use crypt::{hash::sha::Sha384, x25519};
 use tls::{
     cipher_suite::TLS_AES_256_GCM_SHA384,
     hkdf::{derive_secret, hkdf_extract},
@@ -95,10 +95,10 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     let context = TlsContext::new();
 
-    let early_secret = hkdf_extract::<Sha1>(&[48; 0], &key_psk);
+    let early_secret = hkdf_extract::<Sha384>(&[48; 0], &key_psk);
 
-    let handshake_secret = hkdf_extract::<Sha1>(
-        &derive_secret::<Sha1>(&early_secret, "derived", &[]),
+    let handshake_secret = hkdf_extract::<Sha384>(
+        &derive_secret::<Sha384>(&early_secret, "derived", &[]),
         &key_ecdhe,
     );
     let transcript = {
@@ -108,11 +108,10 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         x.into_boxed_slice()
     };
     let server_handshake_traffic_secret =
-        derive_secret::<Sha1>(&handshake_secret, "s hs traffic", &transcript);
-    dbg!(&server_handshake_traffic_secret);
+        derive_secret::<Sha384>(&handshake_secret, "s hs traffic", &transcript);
 
-    let main_secret = hkdf_extract::<Sha1>(
-        &derive_secret::<Sha1>(&handshake_secret, "derived", &[]),
+    let main_secret = hkdf_extract::<Sha384>(
+        &derive_secret::<Sha384>(&handshake_secret, "derived", &[]),
         &[0; 48],
     );
 
