@@ -1,4 +1,6 @@
-use crate::parse::{DataVec8, DataVec16, DataVec24};
+use anyhow::Result;
+
+use crate::parse::{DataVec8, DataVec16, DataVec24, RawDeser, RawSize};
 
 #[derive(Clone, Debug)]
 pub struct CertificateExtension {}
@@ -20,8 +22,32 @@ pub struct CertificateEntry {
     pub extensions: DataVec16<CertificateExtension>,
 }
 
+impl RawSize for CertificateEntry {
+    fn size(&self) -> usize {
+        todo!()
+    }
+}
+
+impl RawDeser for CertificateEntry {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        todo!()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Certificate {
     pub certificate_request_context: DataVec8<u8>,
     pub certificate_list: DataVec24<CertificateEntry>,
+}
+
+impl RawDeser for Certificate {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        let context = DataVec8::deser(raw)?;
+        let list = DataVec24::<CertificateEntry>::deser(&raw[context.size()..])?;
+
+        Ok(Self {
+            certificate_request_context: context,
+            certificate_list: list,
+        })
+    }
 }

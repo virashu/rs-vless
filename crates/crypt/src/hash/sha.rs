@@ -1,5 +1,3 @@
-use crate::hash::Hasher;
-
 mod constants;
 mod sha1;
 mod sha256;
@@ -63,8 +61,11 @@ fn sigma_512_1(x: u64) -> u64 {
     x.rotate_right(19) ^ x.rotate_right(61) ^ (x >> 6)
 }
 
+/// <https://di-mgt.com.au/sha_testvectors.html>
 #[cfg(test)]
 mod tests {
+    use crate::hash::Hasher;
+
     use super::*;
 
     #[test]

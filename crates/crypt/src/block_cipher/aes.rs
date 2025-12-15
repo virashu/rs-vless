@@ -1,3 +1,5 @@
+use crate::block_cipher::BlockCipher;
+
 /// ISO/IEC 18033-3:2010 - 5.2.4.2 - Table 5
 const AES_S_BOX: &[u8] = &[
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
@@ -234,6 +236,15 @@ where
                 self.encrypt_block(chunk)
             })
             .collect::<Box<[u8]>>()
+    }
+}
+
+impl<C> BlockCipher for Aes<C>
+where
+    C: AesCipher,
+{
+    fn encrypt(&self, value: &[u8]) -> Box<[u8]> {
+        self.encrypt(value)
     }
 }
 

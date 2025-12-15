@@ -1,5 +1,5 @@
-pub mod aead_aes_256_gcm;
-pub mod aes;
+pub mod aead;
+pub mod block_cipher;
+pub mod elliptic;
 pub mod hash;
 pub mod hmac;
-pub mod x25519;

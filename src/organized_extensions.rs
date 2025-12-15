@@ -2,7 +2,7 @@ use tls::record::handshake::{
     client_hello::{ClientHelloExtension, ClientHelloExtensionContent},
     extension::{
         KeyShareClientHello, PreSharedKeyExtensionClientHello, PskKeyExchangeModes, ServerNameList,
-        SignatureAlgorithms, StatusRequest, SupportedGroups,
+        SignatureAlgorithms, StatusRequest, SupportedGroups, SupportedVersionsClientHello,
     },
 };
 
@@ -14,6 +14,8 @@ pub struct OrganizedClientExtensions {
     pub signature_algorithms: Option<SignatureAlgorithms>,
     pub psk_key_exchange_modes: Option<PskKeyExchangeModes>,
     pub pre_shared_key: Option<PreSharedKeyExtensionClientHello>,
+    pub extended_main_secret: Option<()>,
+    pub supported_versions: Option<SupportedVersionsClientHello>,
 }
 
 impl OrganizedClientExtensions {
@@ -25,6 +27,8 @@ impl OrganizedClientExtensions {
         let mut signature_algorithms = None;
         let mut psk_key_exchange_modes = None;
         let mut pre_shared_key = None;
+        let mut extended_main_secret = None;
+        let mut supported_versions = None;
 
         for ext in exts {
             match ext.content {
@@ -49,14 +53,16 @@ impl OrganizedClientExtensions {
                 ClientHelloExtensionContent::PreSharedKey(e) => {
                     pre_shared_key = Some(e);
                 }
+                ClientHelloExtensionContent::ExtendedMainSecret => {
+                    extended_main_secret = Some(());
+                }
+                ClientHelloExtensionContent::SupportedVersions(e) => {
+                    supported_versions = Some(e);
+                }
                 // ClientHelloExtensionContent::EcPointFormats(e) => todo!(),
                 // ClientHelloExtensionContent::ApplicationLayerProtocolNegotiation(e) => todo!(),
                 // ClientHelloExtensionContent::SignedCertificateTimestamp => todo!(),
-                // ClientHelloExtensionContent::ExtendedMainSecret => todo!(),
                 // ClientHelloExtensionContent::SessionTicket() => todo!(),
-                // ClientHelloExtensionContent::SupportedVersions(e) => {
-                //     todo!()
-                // }
                 // ClientHelloExtensionContent::PostHandshakeAuth => todo!(),
                 // ClientHelloExtensionContent::RenegotiationInfo(e) => todo!(),
                 _ => {}
@@ -71,6 +77,8 @@ impl OrganizedClientExtensions {
             signature_algorithms,
             psk_key_exchange_modes,
             pre_shared_key,
+            extended_main_secret,
+            supported_versions,
         }
     }
 }

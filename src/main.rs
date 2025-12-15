@@ -1,12 +1,14 @@
 use anyhow::{Result, anyhow, bail};
-use crypt::{hash::sha::Sha384, x25519};
+use crypt::{elliptic::x25519, hash::sha::Sha384};
 use tls::{
     cipher_suite::TLS_AES_256_GCM_SHA384,
+    error::TlsAlert,
     hkdf::{derive_secret, hkdf_extract},
     record::{
         TlsCiphertext, TlsContent, TlsPlaintext,
         handshake::{
             Handshake,
+            certificate::Certificate,
             certificate_request::{CertificateRequest, CertificateRequestExtension},
             encrypted_extensions::EncryptedExtensions,
             extension::{KeyShareEntry, NamedGroup, SignatureScheme},
@@ -25,24 +27,38 @@ use crate::organized_extensions::OrganizedClientExtensions;
 
 mod organized_extensions;
 
-const RANDOM: &[u8; 32] = &[
-    0xEB, 0x88, 0x89, 0xA0, 0x21, 0xE6, 0x78, 0x7B, 0x19, 0xA5, 0xB1, 0xF3, 0x3C, 0x6D, 0xD6, 0xE8,
-    0xD7, 0xFA, 0x0A, 0xAC, 0x3D, 0xB4, 0x51, 0xE5, 0x50, 0x29, 0x18, 0xEA, 0x80, 0x33, 0xEB, 0x91,
-];
-
 struct TlsContext {
+    key_ecdhe: Option<Box<[u8]>>,
+    key_psk: Option<Box<[u8]>>,
+
     seq_nonce: AtomicU64,
 }
 
 impl TlsContext {
-    pub fn new() -> Self {
+    pub fn new(key_ecdhe: Option<Box<[u8]>>, key_psk: Option<Box<[u8]>>) -> Self {
         Self {
+            key_ecdhe,
+            key_psk,
             seq_nonce: AtomicU64::new(0),
         }
     }
 
+    pub fn key_ecdhe(&self) -> &[u8] {
+        self.key_ecdhe.as_deref().unwrap_or(&[0; 32])
+    }
+
+    pub fn key_psk(&self) -> &[u8] {
+        self.key_psk.as_deref().unwrap_or(&[0; 48])
+    }
+
     pub fn nonce(&self) -> u64 {
         self.seq_nonce.fetch_add(1, Ordering::Relaxed)
+    }
+
+    pub fn pad_nonce<const L: usize>(&self) -> [u8; L] {
+        let mut x = [0; L];
+        x[..8].copy_from_slice(&self.nonce().to_be_bytes());
+        x
     }
 }
 
@@ -54,57 +70,74 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     // ClientHello
 
-    let client_hello_raw = &buf[..n];
-    let client_hello_record = TlsPlaintext::from_raw(client_hello_raw)?;
-    let TlsContent::Handshake(Handshake::ClientHello(hello)) = client_hello_record.fragment else {
+    let ch_raw = &buf[..n];
+    let ch_record = TlsPlaintext::from_raw(ch_raw)?;
+    let TlsContent::Handshake(Handshake::ClientHello(client_hello)) = ch_record.fragment else {
         bail!("Not client hello");
     };
-    let exts = OrganizedClientExtensions::organize(hello.extensions);
-    let key_share = exts
+    let ch_exts = OrganizedClientExtensions::organize(client_hello.extensions);
+
+    let extended = ch_exts.extended_main_secret.is_some();
+
+    // EC-DHE
+
+    let key_share = ch_exts
         .key_share
         .ok_or(anyhow!("Missing key_share"))?
         .to_hashmap();
 
-    let x25519_peer_pub = key_share
-        .get(&NamedGroup::x25519)
-        .ok_or(anyhow!("No x25519 key share"))?;
-    let (x25519_pub, x25519_priv) = x25519::get_keypair();
-    let key_ecdhe = x25519::get_shared_key(x25519_priv, x25519_peer_pub.as_ref().try_into()?);
+    let x25519_public;
+    let x25519_shared;
 
-    let key_psk = [48; 0];
+    if let Some(share) = key_share.get(&NamedGroup::x25519) {
+        let (public, private) = x25519::get_keypair();
+
+        x25519_public = Some(public);
+        x25519_shared = Some(x25519::get_shared_key(private, share.as_ref().try_into()?));
+    } else {
+        x25519_public = None;
+        x25519_shared = None;
+    }
+
+    let flag_psk = false;
+
+    let context = TlsContext::new(x25519_shared.map(Box::from), None);
 
     // ServerHello
 
+    let mut sh_extensions = Vec::from([ServerHelloExtension::new_supported_versions(VERSION)]);
+
+    if let Some(share) = &x25519_public {
+        sh_extensions.push(ServerHelloExtension::new_key_share(KeyShareEntry::new(
+            NamedGroup::x25519,
+            share,
+        ))?);
+    }
+
+    if flag_psk {
+        sh_extensions.push(ServerHelloExtension::new_pre_shared_key(0));
+    }
+
     let server_hello = Handshake::ServerHello(ServerHello::new(
-        RANDOM,
-        &hello.legacy_session_id,
+        &rand::random(),
+        &client_hello.legacy_session_id,
         TLS_AES_256_GCM_SHA384,
-        &[
-            ServerHelloExtension::new_supported_versions(VERSION),
-            ServerHelloExtension::new_key_share(KeyShareEntry::new(
-                NamedGroup::x25519,
-                &x25519_pub,
-            ))?,
-            ServerHelloExtension::new_extended_main_secret(),
-            ServerHelloExtension::new_pre_shared_key(0),
-        ],
+        &sh_extensions,
     ));
-    let server_hello_record = TlsPlaintext::new_handshake(server_hello)?;
-    let server_hello_raw = server_hello_record.to_raw();
-    conn.write_all(&server_hello_raw)?;
+    let sh_record = TlsPlaintext::new_handshake(server_hello)?;
+    let sh_raw = sh_record.to_raw();
+    conn.write_all(&sh_raw)?;
 
-    let context = TlsContext::new();
-
-    let early_secret = hkdf_extract::<Sha384>(&[48; 0], &key_psk);
+    let early_secret = hkdf_extract::<Sha384>(&[0; 48], context.key_psk());
 
     let handshake_secret = hkdf_extract::<Sha384>(
         &derive_secret::<Sha384>(&early_secret, "derived", &[]),
-        &key_ecdhe,
+        context.key_ecdhe(),
     );
     let transcript = {
         let mut x = Vec::new();
-        x.extend(client_hello_raw);
-        x.extend(server_hello_raw);
+        x.extend(&ch_raw[5..]);
+        x.extend(&sh_raw[5..]);
         x.into_boxed_slice()
     };
     let server_handshake_traffic_secret =
@@ -117,49 +150,65 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     // EncryptedExtensions
 
+    let mut ee_extensions = Vec::new();
+
+    if extended {
+        ee_extensions.push(ServerHelloExtension::new_extended_main_secret());
+    }
+
     {
-        let e_e = Handshake::EncryptedExtensions(EncryptedExtensions::new());
+        let e_e = Handshake::EncryptedExtensions(EncryptedExtensions::new(&ee_extensions)?);
         let record = TlsPlaintext::new_handshake(e_e)?;
-        let nonce = {
-            let mut x = [0; 12];
-            x[..8].copy_from_slice(&context.nonce().to_be_bytes());
-            x
-        };
         let encrypted = TlsCiphertext::encrypt(
             &record,
             (*server_handshake_traffic_secret).try_into()?,
-            nonce,
+            context.pad_nonce(),
         )?;
         conn.write_all(&encrypted.to_raw())?;
     }
 
     // CertificateRequest
 
-    {
-        let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
-            CertificateRequestExtension::new_signature_algorithms(&[
-                SignatureScheme::rsa_pkcs1_sha256,
-            ])?,
-        ])?);
-        let record = TlsPlaintext::new_handshake(c_r)?;
-        let nonce = {
-            let mut x = [0; 12];
-            x[..8].copy_from_slice(&context.nonce().to_be_bytes());
-            x
-        };
-        let encrypted = TlsCiphertext::encrypt(
-            &record,
-            (*server_handshake_traffic_secret).try_into()?,
-            nonce,
-        )?;
-        conn.write_all(&encrypted.to_raw())?;
-    }
+    // {
+    //     let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
+    //         CertificateRequestExtension::new_signature_algorithms(&[
+    //             SignatureScheme::rsa_pkcs1_sha256,
+    //         ])?,
+    //     ])?);
+    //     let record = TlsPlaintext::new_handshake(c_r)?;
+    //     let encrypted = TlsCiphertext::encrypt(
+    //         &record,
+    //         (*server_handshake_traffic_secret).try_into()?,
+    //         context.pad_nonce(),
+    //     )?;
+    //     conn.write_all(&encrypted.to_raw())?;
+    // }
+
+    // Certificate
+
+    // {
+    //     let cert = Handshake::Certificate(Certificate {});
+    //     let record = TlsPlaintext::new_handshake(cert)?;
+    //     let encrypted = TlsCiphertext::encrypt(
+    //         &record,
+    //         (*server_handshake_traffic_secret).try_into()?,
+    //         context.pad_nonce(),
+    //     )?;
+    //     conn.write_all(&encrypted.to_raw())?;
+    // }
 
     Ok(())
 }
 
 fn handle_connection(mut conn: TcpStream) -> Result<()> {
-    handshake(&mut conn)?;
+    if let Err(e) = handshake(&mut conn) {
+        match e.downcast::<TlsAlert>() {
+            Ok(alert) => {
+                tracing::warn!("Alert: {alert:?}");
+            }
+            Err(e) => return Err(e),
+        }
+    }
 
     let mut buf = [0; 2800];
     loop {

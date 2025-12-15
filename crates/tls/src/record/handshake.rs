@@ -5,6 +5,7 @@ pub mod encrypted_extensions;
 pub mod extension;
 pub mod server_hello;
 
+use certificate::Certificate;
 use certificate_request::CertificateRequest;
 use client_hello::ClientHello;
 use encrypted_extensions::EncryptedExtensions;
@@ -35,7 +36,7 @@ pub enum Handshake {
     EndOfEarlyData,
     EncryptedExtensions(EncryptedExtensions),
     CertificateRequest(CertificateRequest),
-    Certificate,
+    Certificate(Certificate),
     CertificateVerify,
     Finished,
     NewSessionTicket,
@@ -58,7 +59,7 @@ impl RawDeser for Handshake {
             handshake_types::ENCRYPTED_EXTENSIONS => {
                 Self::EncryptedExtensions(EncryptedExtensions::deser(data)?)
             }
-            handshake_types::CERTIFICATE => Self::Certificate,
+            handshake_types::CERTIFICATE => Self::Certificate(Certificate::deser(data)?),
             handshake_types::CERTIFICATE_REQUEST => {
                 Self::CertificateRequest(CertificateRequest::deser(data)?)
             }

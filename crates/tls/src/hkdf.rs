@@ -55,5 +55,5 @@ pub fn derive_secret<H: Hasher>(
     let context = H::hash(messages);
     let length = context.len() as u16;
 
-    hkdf_expand_label::<H>(secret, label, &context, 32)
+    hkdf_expand_label::<H>(secret, label, &context, length)
 }

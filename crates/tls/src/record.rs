@@ -128,7 +128,7 @@ impl TlsCiphertext {
         let additional_data = flat!([23], LEGACY_VERSION_BYTES, length.to_be_bytes());
 
         let encrypted =
-            crypt::aead_aes_256_gcm::encrypt(&key, &nonce, &plaintext, &additional_data)?.0;
+            crypt::aead::encrypt_aes_256_gcm(&key, &nonce, &plaintext, &additional_data)?.0;
 
         Ok(Self {
             length,

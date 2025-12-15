@@ -1,38 +1,41 @@
 use anyhow::Result;
 
-use crate::parse::{DataVec16, RawDeser, RawSer, RawSize};
+use crate::{
+    parse::{DataVec16, RawDeser, RawSer, RawSize},
+    record::handshake::server_hello::ServerHelloExtension,
+};
 
-#[derive(Clone, Debug)]
-pub struct EncryptedExtensionsExtension {}
+// #[derive(Clone, Debug)]
+// pub struct EncryptedExtensionsExtension {}
 
-impl RawSer for EncryptedExtensionsExtension {
-    fn ser(&self) -> Box<[u8]> {
-        todo!()
-    }
-}
+// impl RawSer for EncryptedExtensionsExtension {
+//     fn ser(&self) -> Box<[u8]> {
+//         todo!()
+//     }
+// }
 
-impl RawDeser for EncryptedExtensionsExtension {
-    fn deser(raw: &[u8]) -> Result<Self> {
-        todo!()
-    }
-}
+// impl RawDeser for EncryptedExtensionsExtension {
+//     fn deser(raw: &[u8]) -> Result<Self> {
+//         todo!()
+//     }
+// }
 
-impl RawSize for EncryptedExtensionsExtension {
-    fn size(&self) -> usize {
-        todo!()
-    }
-}
+// impl RawSize for EncryptedExtensionsExtension {
+//     fn size(&self) -> usize {
+//         todo!()
+//     }
+// }
 
 #[derive(Clone, Debug)]
 pub struct EncryptedExtensions {
-    extensions: DataVec16<EncryptedExtensionsExtension>,
+    extensions: DataVec16<ServerHelloExtension>,
 }
 
 impl EncryptedExtensions {
-    pub fn new() -> Self {
-        Self {
-            extensions: DataVec16::new(),
-        }
+    pub fn new(extensions: &[ServerHelloExtension]) -> Result<Self> {
+        Ok(Self {
+            extensions: DataVec16::try_from(extensions)?,
+        })
     }
 }
 

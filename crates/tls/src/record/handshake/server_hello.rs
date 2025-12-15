@@ -6,7 +6,7 @@ use super::extension::{
 };
 use crate::{
     cipher_suite::CipherSuite,
-    parse::{RawSer, RawSize},
+    parse::{RawDeser, RawSer, RawSize},
 };
 
 #[derive(Clone, Debug)]
@@ -109,6 +109,12 @@ impl RawSer for ServerHelloExtension {
     }
 }
 
+impl RawDeser for ServerHelloExtension {
+    fn deser(raw: &[u8]) -> Result<Self> {
+        todo!()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct ServerHello {
     pub random: Box<[u8; 32]>,
@@ -142,7 +148,7 @@ impl RawSer for ServerHello {
 
         res.extend(self.random.as_ref());
 
-        res.extend((self.legacy_session_id_echo.len() as u8).to_be_bytes());
+        res.push(self.legacy_session_id_echo.len() as u8);
         res.extend(self.legacy_session_id_echo.as_ref());
 
         res.extend(self.cipher_suite.0.to_be_bytes());
