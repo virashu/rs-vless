@@ -65,21 +65,25 @@ fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
     let blocks = {
         let mut acc = Vec::new();
 
-        let (a_blocks, a_remainder) = a.as_chunks::<16>();
-        acc.extend(a_blocks);
-        acc.push({
-            let mut pad = [0; 16];
-            pad[..a_remainder.len()].copy_from_slice(a_remainder);
-            pad
-        });
+        if !a.is_empty() {
+            let (a_blocks, a_remainder) = a.as_chunks::<16>();
+            acc.extend(a_blocks);
+            acc.push({
+                let mut pad = [0; 16];
+                pad[..a_remainder.len()].copy_from_slice(a_remainder);
+                pad
+            });
+        }
 
-        let (c_blocks, c_remainder) = c.as_chunks::<16>();
-        acc.extend(c_blocks);
-        acc.push({
-            let mut pad = [0; 16];
-            pad[..c_remainder.len()].copy_from_slice(c_remainder);
-            pad
-        });
+        if !c.is_empty() {
+            let (c_blocks, c_remainder) = c.as_chunks::<16>();
+            acc.extend(c_blocks);
+            acc.push({
+                let mut pad = [0; 16];
+                pad[..c_remainder.len()].copy_from_slice(c_remainder);
+                pad
+            });
+        }
 
         acc.push({
             let a_len: [u8; 8] = ((a.len() * 8) as u64).to_be_bytes();
@@ -219,9 +223,6 @@ mod tests {
         let plaintext = [0; 16];
         let ad = [];
 
-        let m = mul(2u128.to_be_bytes(), 2u128.to_be_bytes());
-        dbg!(m);
-
         let (c, t) = encrypt_aes_128_gcm(&key, &iv, &plaintext, &ad).unwrap();
 
         assert_eq!(
@@ -240,6 +241,7 @@ mod tests {
         );
     }
 
+    /// Test Case 3
     #[test]
     fn test_aead_aes_128_gcm_3() {
         let key = [
@@ -263,8 +265,11 @@ mod tests {
         assert_eq!(
             *c,
             [
-                0x03, 0x88, 0xda, 0xce, 0x60, 0xb6, 0xa3, 0x92, 0xf3, 0x28, 0xc2, 0xb9, 0x71, 0xb2,
-                0xfe, 0x78,
+                0x42, 0x83, 0x1e, 0xc2, 0x21, 0x77, 0x74, 0x24, 0x4b, 0x72, 0x21, 0xb7, 0x84, 0xd0,
+                0xd4, 0x9c, 0xe3, 0xaa, 0x21, 0x2f, 0x2c, 0x02, 0xa4, 0xe0, 0x35, 0xc1, 0x7e, 0x23,
+                0x29, 0xac, 0xa1, 0x2e, 0x21, 0xd5, 0x14, 0xb2, 0x54, 0x66, 0x93, 0x1c, 0x7d, 0x8f,
+                0x6a, 0x5a, 0xac, 0x84, 0xaa, 0x05, 0x1b, 0xa3, 0x0b, 0x39, 0x6a, 0x0a, 0xac, 0x97,
+                0x3d, 0x58, 0xe0, 0x91, 0x47, 0x3f, 0x59, 0x85,
             ]
         );
         assert_eq!(
@@ -292,6 +297,32 @@ mod tests {
             [
                 0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9, 0xa9, 0x63, 0xb4, 0xf1, 0xc4, 0xcb,
                 0x73, 0x8b
+            ]
+        );
+    }
+
+    /// Test Case 14
+    #[test]
+    fn test_aead_aes_256_gcm_2() {
+        let key = [0; 32];
+        let iv = [0; 12];
+        let plaintext = [0; 16];
+        let ad = [];
+
+        let (c, t) = encrypt_aes_256_gcm(&key, &iv, &plaintext, &ad).unwrap();
+
+        assert_eq!(
+            *c,
+            [
+                0xce, 0xa7, 0x40, 0x3d, 0x4d, 0x60, 0x6b, 0x6e, 0x07, 0x4e, 0xc5, 0xd3, 0xba, 0xf3,
+                0x9d, 0x18,
+            ]
+        );
+        assert_eq!(
+            *t,
+            [
+                0xd0, 0xd1, 0xc8, 0xa7, 0x99, 0x99, 0x6b, 0xf0, 0x26, 0x5b, 0x98, 0xb5, 0xd4, 0x8a,
+                0xb9, 0x19,
             ]
         );
     }
