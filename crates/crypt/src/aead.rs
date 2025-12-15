@@ -61,96 +61,6 @@ fn incr_by<const N: usize>(y: [u8; N], i: u32) -> Result<[u8; N]> {
     Ok(y)
 }
 
-// #[allow(clippy::many_single_char_names)]
-// fn x_i(
-//     (n, u, m, v, i): (usize, usize, usize, usize, usize),
-//     hash_key: &[u8; 16],
-//     a: &[[u8; 16]],
-//     a_rem: &[u8],
-//     c: &[[u8; 16]],
-//     c_rem: &[u8],
-// ) -> [u8; 16] {
-//     let x = |i| x_i((n, u, m, v, i), hash_key, a, a_rem, c, c_rem);
-
-//     let r = match i {
-//         0 => [0; 16],
-
-//         _ if (1..m).contains(&i) => mul(xor(x(i - 1), a[i - 1]), *hash_key),
-
-//         _ if m == i => mul(
-//             xor(x(i - 1), {
-//                 let mut pad = [0; 16];
-//                 pad[..a_rem.len()].copy_from_slice(a_rem);
-//                 pad
-//             }),
-//             *hash_key,
-//         ),
-
-//         _ if ((m + 1)..(m + n)).contains(&i) => {
-//             dbg!(m, n, i);
-//             mul(xor(x(i - 1), c[i - 1 - m]), *hash_key)
-//         }
-
-//         _ if m + n == i => mul(
-//             xor(x(i - 1), {
-//                 let mut pad = [0; 16];
-//                 pad[..c_rem.len()].copy_from_slice(c_rem);
-//                 pad
-//             }),
-//             *hash_key,
-//         ),
-
-//         _ if m + n + 1 == i => {
-//             let a_len: [u8; 8] = (((m - 1) * 128 + v) as u64).to_be_bytes();
-//             let c_len: [u8; 8] = (((n - 1) * 128 + u) as u64).to_be_bytes();
-//             let len: [u8; 16] = [a_len, c_len].concat().try_into().unwrap();
-//             mul(xor(x(m + n), len), *hash_key)
-//         }
-
-//         _ => unimplemented!(),
-//     };
-//     println!("x_{i}\t= {r:02x?}");
-//     r
-// }
-
-// #[allow(clippy::many_single_char_names)]
-// fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
-//     // Ciphertext
-//     let n = c.len() / 16 + 1;
-//     let u = c.len() % 16 * 8;
-//     let c_padded = if u == 0 {
-//         Vec::from(c)
-//     } else {
-//         let mut c = Vec::from(a);
-//         c.extend(vec![0; 16 - (u / 8)]);
-//         c
-//     };
-
-//     let (c_blocks, c_remainder) = c_padded.as_chunks::<16>();
-
-//     // Additional data
-//     let m = a.len() / 16 + 1;
-//     let v = a.len() % 16 * 8;
-//     let a_padded = if v == 0 {
-//         Vec::from(a)
-//     } else {
-//         let mut a = Vec::from(a);
-//         a.extend(vec![0; 16 - (v / 8)]);
-//         a
-//     };
-//     let (a_blocks, a_remainder) = a_padded.as_chunks::<16>();
-
-//     let i = m + n + 1;
-//     x_i(
-//         (n, u, m, v, i),
-//         hash_key,
-//         a_blocks,
-//         a_remainder,
-//         c_blocks,
-//         c_remainder,
-//     )
-// }
-
 fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
     let blocks = {
         let mut acc = Vec::new();
@@ -184,6 +94,7 @@ fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
 
     for (block, i) in blocks.into_iter().zip(1..) {
         x = mul(xor(x, block), *hash_key);
+
         println!("BLOCK #{i}: {block:02x?}");
         println!("X_{i}\t= {x:02x?}");
     }
@@ -277,12 +188,13 @@ pub fn encrypt_aes_256_gcm(
     encrypt(&block_cipher, iv, plaintext, additional_data)
 }
 
+/// <https://csrc.nist.rip/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-spec.pdf>
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_aead_sha_128_gcm_1() {
+    fn test_aead_aes_128_gcm_1() {
         let key = [0; 16];
         let iv = [0; 12];
         let plaintext = [];
@@ -301,7 +213,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aead_sha_128_gcm_2() {
+    fn test_aead_aes_128_gcm_2() {
         let key = [0; 16];
         let iv = [0; 12];
         let plaintext = [0; 16];
@@ -329,7 +241,7 @@ mod tests {
     }
 
     #[test]
-    fn test_aead_sha_128_gcm_3() {
+    fn test_aead_aes_128_gcm_3() {
         let key = [
             0xfe, 0xff, 0xe9, 0x92, 0x86, 0x65, 0x73, 0x1c, 0x6d, 0x6a, 0x8f, 0x94, 0x67, 0x30,
             0x83, 0x08,
@@ -364,8 +276,9 @@ mod tests {
         );
     }
 
+    /// Test Case 13
     #[test]
-    fn test_aead_sha_256_gcm_1() {
+    fn test_aead_aes_256_gcm_1() {
         let key = [0; 32];
         let iv = [0; 12];
         let plaintext = [];
@@ -377,8 +290,8 @@ mod tests {
         assert_eq!(
             *t,
             [
-                0xcd, 0x33, 0xb2, 0x8a, 0xc7, 0x73, 0xf7, 0x4b, 0xa0, 0x0e, 0xd1, 0xf3, 0x12, 0x57,
-                0x24, 0x35,
+                0x53, 0x0f, 0x8a, 0xfb, 0xc7, 0x45, 0x36, 0xb9, 0xa9, 0x63, 0xb4, 0xf1, 0xc4, 0xcb,
+                0x73, 0x8b
             ]
         );
     }
