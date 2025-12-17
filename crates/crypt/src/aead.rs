@@ -20,35 +20,60 @@ fn xor_dyn(a: &[u8], b: &[u8]) -> Result<Box<[u8]>> {
     Ok(a.iter().zip(b.iter()).map(|(x, y)| x ^ y).collect())
 }
 
-fn shr(x: [u8; 16]) -> [u8; 16] {
-    (u128::from_be_bytes(x) >> 1).to_be_bytes()
-}
+// fn shr(x: [u8; 16]) -> [u8; 16] {
+//     (u128::from_be_bytes(x) >> 1).to_be_bytes()
+// }
 
-// fn mul(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+// fn mul_n(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
 //     (u128::from_be_bytes(a).wrapping_mul(u128::from_be_bytes(b))).to_be_bytes()
 // }
 
-fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
-    const R: [u8; 16] = (0b_1110_0001_u128 << 120).to_be_bytes();
+// fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
+//     const R: [u8; 16] = (0b_1110_0001_u128 << 120).to_be_bytes();
 
-    let mut z = [0; 16];
-    let mut v = x;
+//     let mut z = [0; 16];
+//     let mut v = x;
+
+//     for i in 0..128 {
+//         let y_i = (y[i / 8] >> (7 - (i % 8))) & 1;
+
+//         if y_i == 1 {
+//             z = xor(z, v);
+//         }
+
+//         if v & 1 == 0 {
+//             v = shr(v);
+//         } else {
+//             v = xor(shr(v), R);
+//         }
+//     }
+
+//     z
+// }
+
+fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
+    const R: u128 = 0xe1 << 120;
+
+    let x = u128::from_be_bytes(x);
+
+    let mut z = 0u128;
+    let mut v = u128::from_be_bytes(y);
+
+    println!("* MUL | {x:016x} x {v:016x}");
 
     for i in 0..128 {
-        let y_i = y[i / 8] >> (7 - (i % 8));
-
-        if y_i == 1 {
-            z = xor(z, v);
+        if (x >> i) & 1 == 1 {
+            z ^= v;
         }
 
-        if v[15] >> 7 == 0 {
-            v = shr(v);
-        } else {
-            v = xor(shr(v), R);
+        let carry = v & 1 == 1;
+        v >>= 1;
+        if carry {
+            v ^= R;
         }
     }
 
-    z
+    z.to_be_bytes()
 }
 
 fn incr_by<const N: usize>(y: [u8; N], i: u32) -> Result<[u8; N]> {
@@ -96,11 +121,17 @@ fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
 
     let mut x = [0; 16];
 
+    // 0x0388dace60b6a392f328c2b971b2fe78 * 0x66e94bd4ef8a2c3b884cfa59ca342b2e
+    // = 0x5e2ec746917062882c85b0685353deb7
     for (block, i) in blocks.into_iter().zip(1..) {
-        x = mul(xor(x, block), *hash_key);
-
         println!("BLOCK #{i}: {block:02x?}");
+
+        let xor_res = xor(x, block);
+        println!("XOR #{i}:   {xor_res:02x?}");
+
+        x = mul(xor_res, *hash_key);
         println!("X_{i}\t= {x:02x?}");
+        println!();
     }
 
     x
@@ -117,7 +148,6 @@ pub fn encrypt(
     additional_data: &[u8],
 ) -> Result<(Box<[u8]>, Box<[u8]>)> {
     let n = (plaintext.len() / 16 + 1) as u32;
-    let u = (plaintext.len() % 16 * 8) as u32;
 
     let (blocks, remainder) = plaintext.as_chunks::<16>();
 
