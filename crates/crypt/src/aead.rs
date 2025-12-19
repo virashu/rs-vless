@@ -1,4 +1,5 @@
-use anyhow::{Result, bail};
+use anyhow::{Result, ensure};
+use num_bigint::BigUint;
 
 use crate::block_cipher::{
     BlockCipher,
@@ -13,67 +14,58 @@ fn xor(mut a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
 }
 
 fn xor_dyn(a: &[u8], b: &[u8]) -> Result<Box<[u8]>> {
-    if a.len() != b.len() {
-        bail!("Len is not equal");
-    }
+    ensure!(a.len() == b.len(), "Len is not equal");
 
     Ok(a.iter().zip(b.iter()).map(|(x, y)| x ^ y).collect())
 }
 
-// fn shr(x: [u8; 16]) -> [u8; 16] {
-//     (u128::from_be_bytes(x) >> 1).to_be_bytes()
-// }
+fn mul_n(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
+    let a = BigUint::from_bytes_be(&a);
+    let b = BigUint::from_bytes_be(&b);
 
-// fn mul_n(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
-//     (u128::from_be_bytes(a).wrapping_mul(u128::from_be_bytes(b))).to_be_bytes()
-// }
+    // GF(2^128)
+    // = x^128 + x^7 + x^2 + x + 1
+    let modulo = (BigUint::from(1u32) << 128) + BigUint::from(0b1000_0111u32);
 
-// fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
-//     const R: [u8; 16] = (0b_1110_0001_u128 << 120).to_be_bytes();
+    // let mut c: BigUint = a * b;
+    // if c >= (BigUint::from(1u32) << 128) {
+    //     c ^= BigUint::from(0b1000_0111u32);
+    // }
+    // let part: BigUint = c % (BigUint::from(1u32) << 128);
 
-//     let mut z = [0; 16];
-//     let mut v = x;
+    let cut: BigUint = (a * b) % modulo;
 
-//     for i in 0..128 {
-//         let y_i = (y[i / 8] >> (7 - (i % 8))) & 1;
+    let res = cut.to_bytes_be();
 
-//         if y_i == 1 {
-//             z = xor(z, v);
-//         }
-
-//         if v & 1 == 0 {
-//             v = shr(v);
-//         } else {
-//             v = xor(shr(v), R);
-//         }
-//     }
-
-//     z
-// }
+    let n = res.len();
+    let mut r = [0; 16];
+    r[..n].copy_from_slice(&res[..n]);
+    r
+}
 
 fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
     const R: u128 = 0xe1 << 120;
 
     let x = u128::from_be_bytes(x);
 
-    let mut z = 0u128;
+    let mut product = 0u128;
     let mut v = u128::from_be_bytes(y);
 
     println!("* MUL | {x:016x} x {v:016x}");
 
     for i in 0..128 {
         if (x >> i) & 1 == 1 {
-            z ^= v;
+            product ^= v;
         }
 
-        let carry = v & 1 == 1;
+        let lsb = v & 1 == 1;
         v >>= 1;
-        if carry {
+        if lsb {
             v ^= R;
         }
     }
 
-    z.to_be_bytes()
+    product.to_be_bytes()
 }
 
 fn incr_by<const N: usize>(y: [u8; N], i: u32) -> Result<[u8; N]> {
@@ -129,7 +121,7 @@ fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
         let xor_res = xor(x, block);
         println!("XOR #{i}:   {xor_res:02x?}");
 
-        x = mul(xor_res, *hash_key);
+        x = mul_n(xor_res, *hash_key);
         println!("X_{i}\t= {x:02x?}");
         println!();
     }
@@ -226,6 +218,21 @@ pub fn encrypt_aes_256_gcm(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_mul() {
+        // 0x0388dace60b6a392f328c2b971b2fe78 * 0x66e94bd4ef8a2c3b884cfa59ca342b2e
+        // = 0x5e2ec746917062882c85b0685353deb7
+
+        let a = 0x0388dace60b6a392f328c2b971b2fe78u128;
+        let b = 0x66e94bd4ef8a2c3b884cfa59ca342b2eu128;
+        let expected = 0x5e2ec746917062882c85b0685353deb7u128;
+
+        let res = u128::from_be_bytes(mul_n(a.to_be_bytes(), b.to_be_bytes()));
+        println!("= {res:016x}");
+
+        assert_eq!(expected, res);
+    }
 
     #[test]
     fn test_aead_aes_128_gcm_1() {
