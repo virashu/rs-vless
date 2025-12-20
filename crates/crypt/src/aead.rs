@@ -1,3 +1,5 @@
+//! <https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf>
+
 use anyhow::{Result, ensure};
 use num_bigint::BigUint;
 
@@ -23,20 +25,18 @@ fn mul_n(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
     let a = BigUint::from_bytes_be(&a);
     let b = BigUint::from_bytes_be(&b);
 
-    // GF(2^128)
-    // = x^128 + x^7 + x^2 + x + 1
-    let modulo = (BigUint::from(1u32) << 128) + BigUint::from(0b1000_0111u32);
-
     // let mut c: BigUint = a * b;
     // if c >= (BigUint::from(1u32) << 128) {
     //     c ^= BigUint::from(0b1000_0111u32);
     // }
-    // let part: BigUint = c % (BigUint::from(1u32) << 128);
+    // let cut: BigUint = c % (BigUint::from(1u32) << 128);
 
+    // GF(2^128)
+    // = x^128 + x^7 + x^2 + x + 1
+    let modulo = (BigUint::from(1u32) << 128) + BigUint::from(0b1000_0111u32);
     let cut: BigUint = (a * b) % modulo;
 
     let res = cut.to_bytes_be();
-
     let n = res.len();
     let mut r = [0; 16];
     r[..n].copy_from_slice(&res[..n]);
@@ -50,8 +50,6 @@ fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
 
     let mut product = 0u128;
     let mut v = u128::from_be_bytes(y);
-
-    println!("* MUL | {x:016x} x {v:016x}");
 
     for i in 0..128 {
         if (x >> i) & 1 == 1 {
@@ -68,128 +66,131 @@ fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
     product.to_be_bytes()
 }
 
-fn incr_by<const N: usize>(y: [u8; N], i: u32) -> Result<[u8; N]> {
-    let a0: [u8; 4] = y[(y.len() - 4)..].try_into()?;
-    let a1 = u32::from_be_bytes(a0).overflowing_add(i).0;
+fn inc<const N: usize>(y: [u8; N]) -> [u8; N] {
+    let a0: [u8; 4] = y[(y.len() - 4)..].try_into().unwrap();
+    let a1 = u32::from_be_bytes(a0).wrapping_add(1);
+
     let mut res = Vec::new();
     res.extend(&y[..(y.len() - 4)]);
     res.extend(a1.to_be_bytes());
-    let y: [u8; N] = res.as_slice().try_into().unwrap();
-    Ok(y)
+
+    res.as_slice().try_into().unwrap()
 }
 
-fn g_hash(hash_key: &[u8; 16], a: &[u8], c: &[u8]) -> [u8; 16] {
-    let blocks = {
-        let mut acc = Vec::new();
+fn ghash(hash_key: &[u8; 16], value: &[u8]) -> Result<[u8; 16]> {
+    ensure!(value.len() % 16 == 0);
 
-        if !a.is_empty() {
-            let (a_blocks, a_remainder) = a.as_chunks::<16>();
-            acc.extend(a_blocks);
-            acc.push({
-                let mut pad = [0; 16];
-                pad[..a_remainder.len()].copy_from_slice(a_remainder);
-                pad
-            });
-        }
+    let mut hash = [0; 16];
 
-        if !c.is_empty() {
-            let (c_blocks, c_remainder) = c.as_chunks::<16>();
-            acc.extend(c_blocks);
-            acc.push({
-                let mut pad = [0; 16];
-                pad[..c_remainder.len()].copy_from_slice(c_remainder);
-                pad
-            });
-        }
+    for (block, i) in value.as_chunks().0.iter().zip(1..) {
+        println!("GH_BLOCK_{i}   = {block:02x?}");
 
-        acc.push({
-            let a_len: [u8; 8] = ((a.len() * 8) as u64).to_be_bytes();
-            let c_len: [u8; 8] = ((c.len() * 8) as u64).to_be_bytes();
-            [a_len, c_len].concat().try_into().unwrap()
-        });
+        let xor_res = xor(hash, *block);
+        println!(
+            "(~) {:032x?} XOR {:032x?}\n    = {:032x?}\n",
+            u128::from_be_bytes(hash),
+            u128::from_be_bytes(*block),
+            u128::from_be_bytes(xor_res),
+        );
 
-        acc
-    };
+        hash = mul(xor_res, *hash_key);
+        println!(
+            "(~) {:032x?} MUL {:032x?}\n    = {:032x?}\n",
+            u128::from_be_bytes(xor_res),
+            u128::from_be_bytes(*hash_key),
+            u128::from_be_bytes(hash),
+        );
 
-    let mut x = [0; 16];
-
-    // 0x0388dace60b6a392f328c2b971b2fe78 * 0x66e94bd4ef8a2c3b884cfa59ca342b2e
-    // = 0x5e2ec746917062882c85b0685353deb7
-    for (block, i) in blocks.into_iter().zip(1..) {
-        println!("BLOCK #{i}: {block:02x?}");
-
-        let xor_res = xor(x, block);
-        println!("XOR #{i}:   {xor_res:02x?}");
-
-        x = mul_n(xor_res, *hash_key);
-        println!("X_{i}\t= {x:02x?}");
-        println!();
+        println!("GH_ITER_{i}    = {hash:02x?}");
     }
 
-    x
+    Ok(hash)
 }
 
-#[allow(clippy::type_complexity)]
+/// Encrypt `input` with `block_cipher`
+/// using `initial_counter` as a starting value for counter
+fn gctr(
+    block_cipher: &dyn BlockCipher,
+    initial_counter: [u8; 16],
+    input: &[u8],
+) -> Result<Box<[u8]>> {
+    if input.is_empty() {
+        return Ok(Box::new([]));
+    }
+
+    let mut counter = initial_counter;
+    let (blocks, remainder) = input.as_chunks::<16>();
+    let mut ciphertext: Vec<u8> = Vec::new();
+
+    for (i, block_i) in (1..).zip(blocks) {
+        println!("CB_{i}    = {counter:02x?}");
+
+        let key_i: [u8; 16] = (*block_cipher.encrypt(&counter)).try_into()?;
+        println!("E(CB_{i}) = {key_i:02x?}");
+
+        let ciphertext_i = xor(*block_i, key_i);
+        ciphertext.extend(ciphertext_i);
+        counter = inc(counter);
+    }
+
+    let key_n: [u8; 16] = (*block_cipher.encrypt(&counter)).try_into()?;
+    let block_n = remainder;
+    let ciphertext_n = xor_dyn(block_n, &key_n[..(block_n.len())])?;
+    ciphertext.extend(ciphertext_n);
+
+    Ok(ciphertext.into_boxed_slice())
+}
+
+type Ciphertext = Box<[u8]>;
+type Tag = Box<[u8]>;
+
 #[allow(clippy::missing_errors_doc)]
-#[allow(clippy::cast_possible_truncation)]
-#[allow(clippy::many_single_char_names)]
 pub fn encrypt(
     block_cipher: &dyn BlockCipher,
     iv: &[u8],
     plaintext: &[u8],
     additional_data: &[u8],
-) -> Result<(Box<[u8]>, Box<[u8]>)> {
-    let n = (plaintext.len() / 16 + 1) as u32;
-
-    let (blocks, remainder) = plaintext.as_chunks::<16>();
-
+) -> Result<(Ciphertext, Tag)> {
     let hash_key: [u8; 16] = (*block_cipher.encrypt(&[0; 16])).try_into()?;
     println!("H\t= {hash_key:02x?}");
 
-    let y_0: [u8; 16] = if iv.len() == 12 {
+    let counter_initial: [u8; 16] = if iv.len() == 12 {
         let mut x = [0; 16];
-        x[..12].copy_from_slice(iv);
-        x[12..].copy_from_slice(&1u32.to_be_bytes());
+        x[0..12].copy_from_slice(iv);
+        x[12..16].copy_from_slice(&1u32.to_be_bytes());
         x
     } else {
         // g_hash(&hash_key, &[], iv)
         todo!()
     };
-    let e_y_0 = block_cipher.encrypt(&y_0);
-    let get_y = |i| incr_by(y_0, i);
+    println!("CTR_0\t= {counter_initial:02x?}");
 
-    println!("y_0\t= {:02x?}", y_0);
-    println!("E(y_0)\t= {:02x?}", e_y_0);
+    let ciphertext = gctr(block_cipher, inc(counter_initial), plaintext)?;
+    println!("C\t= {ciphertext:02x?}");
 
-    let mut ciphertext: Vec<u8> = Vec::new();
+    let u = 16 * ciphertext.len().div_ceil(16) - ciphertext.len();
+    let v = 16 * additional_data.len().div_ceil(16) - additional_data.len();
 
-    for (i, p_i) in (1..).zip(blocks) {
-        let y_i = get_y(i)?;
-        println!("y_{i}\t= {y_i:02x?}");
-        let e_k: [u8; 16] = (*block_cipher.encrypt(&y_i)).try_into()?;
-        println!("E(y_{i})\t= {e_k:02x?}");
+    let tag_block_input = {
+        let mut acc = Vec::new();
 
-        let c_i = xor(*p_i, e_k);
-        ciphertext.extend(c_i);
-    }
+        acc.extend(additional_data);
+        acc.extend([0u8].repeat(v));
 
-    let e_k: [u8; 16] = (*block_cipher.encrypt(&get_y(n)?)).try_into()?;
-    let p_n = remainder;
-    let c_n = xor_dyn(p_n, &e_k[..(p_n.len())])?;
-    ciphertext.extend(c_n);
+        acc.extend(&ciphertext);
+        acc.extend([0u8].repeat(u));
 
-    println!(
-        "len\t= {:02x?}{:02x?}",
-        ((additional_data.len() * 8) as u64).to_be_bytes(),
-        ((ciphertext.len() * 8) as u64).to_be_bytes()
-    );
+        acc.extend(((additional_data.len() * 8) as u64).to_be_bytes());
+        acc.extend(((ciphertext.len() * 8) as u64).to_be_bytes());
 
-    let ghash_hac = g_hash(&hash_key, additional_data, &ciphertext);
-    println!("GHASH\t= {ghash_hac:02x?}");
-    let tag = xor_dyn(&ghash_hac, &e_y_0)?;
+        acc
+    };
+    let tag_block = ghash(&hash_key, &tag_block_input)?;
+    let tag = gctr(block_cipher, counter_initial, &tag_block)?;
+
     println!("T\t= {tag:02x?}");
 
-    Ok((ciphertext.into_boxed_slice(), tag))
+    Ok((ciphertext, tag))
 }
 
 pub fn encrypt_aes_128_gcm(
@@ -228,7 +229,7 @@ mod tests {
         let b = 0x66e94bd4ef8a2c3b884cfa59ca342b2eu128;
         let expected = 0x5e2ec746917062882c85b0685353deb7u128;
 
-        let res = u128::from_be_bytes(mul_n(a.to_be_bytes(), b.to_be_bytes()));
+        let res = u128::from_be_bytes(mul(a.to_be_bytes(), b.to_be_bytes()));
         println!("= {res:016x}");
 
         assert_eq!(expected, res);
