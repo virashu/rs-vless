@@ -44,7 +44,7 @@ fn mul_n(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
 }
 
 fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
-    const R: u128 = 0xe1 << 120;
+    const R: u128 = 0xE1 << 120;
 
     let x = u128::from_be_bytes(x);
 
@@ -52,7 +52,7 @@ fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
     let mut v = u128::from_be_bytes(y);
 
     for i in 0..128 {
-        if (x >> i) & 1 == 1 {
+        if (x >> (127 - i)) & 1 == 1 {
             product ^= v;
         }
 
@@ -87,7 +87,7 @@ fn ghash(hash_key: &[u8; 16], value: &[u8]) -> Result<[u8; 16]> {
 
         let xor_res = xor(hash, *block);
         println!(
-            "(~) {:032x?} XOR {:032x?}\n    = {:032x?}\n",
+            "(~) {:032x?} XOR {:032x?} = {:032x?}",
             u128::from_be_bytes(hash),
             u128::from_be_bytes(*block),
             u128::from_be_bytes(xor_res),
@@ -95,7 +95,7 @@ fn ghash(hash_key: &[u8; 16], value: &[u8]) -> Result<[u8; 16]> {
 
         hash = mul(xor_res, *hash_key);
         println!(
-            "(~) {:032x?} MUL {:032x?}\n    = {:032x?}\n",
+            "(~) {:032x?} MUL {:032x?} = {:032x?}",
             u128::from_be_bytes(xor_res),
             u128::from_be_bytes(*hash_key),
             u128::from_be_bytes(hash),
@@ -160,18 +160,22 @@ pub fn encrypt(
         x[12..16].copy_from_slice(&1u32.to_be_bytes());
         x
     } else {
-        // g_hash(&hash_key, &[], iv)
-        todo!()
+        let mut x = Vec::new();
+        let s = 16 * iv.len().div_ceil(16) - iv.len();
+        x.extend(iv);
+        x.extend([0].repeat(s + 8));
+        x.extend((iv.len() as u64).to_be_bytes());
+        ghash(&hash_key, &x)?
     };
     println!("CTR_0\t= {counter_initial:02x?}");
 
     let ciphertext = gctr(block_cipher, inc(counter_initial), plaintext)?;
     println!("C\t= {ciphertext:02x?}");
 
-    let u = 16 * ciphertext.len().div_ceil(16) - ciphertext.len();
-    let v = 16 * additional_data.len().div_ceil(16) - additional_data.len();
-
     let tag_block_input = {
+        let u = 16 * ciphertext.len().div_ceil(16) - ciphertext.len();
+        let v = 16 * additional_data.len().div_ceil(16) - additional_data.len();
+
         let mut acc = Vec::new();
 
         acc.extend(additional_data);
