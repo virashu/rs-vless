@@ -6,12 +6,13 @@ pub mod handshake;
 use alert::Alert;
 use handshake::Handshake;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 use crate::{
     LEGACY_VERSION_BYTES,
     macros::flat,
     parse::{RawDeser, RawSer},
+    record::content_types::APPLICATION_DATA,
 };
 
 pub mod content_types {
@@ -48,7 +49,7 @@ impl RawSer for TlsContent {
         match self {
             TlsContent::Invalid => todo!(),
             TlsContent::ChangeCipherSpec => todo!(),
-            TlsContent::Alert(alert) => todo!(),
+            TlsContent::Alert(alert) => alert.ser(),
             TlsContent::Handshake(handshake) => handshake.ser(),
             TlsContent::ApplicationData => todo!(),
         }
@@ -109,6 +110,7 @@ impl TlsPlaintext {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct TlsCiphertext {
     // ContentType opaque_type = application_data; /* 23 */
     // ProtocolVersion legacy_record_version = 0x0303; /* TLS v1.2 */
@@ -124,20 +126,61 @@ impl TlsCiphertext {
         let plaintext = flat!(content, [content_type], &padding);
 
         #[allow(clippy::cast_possible_truncation)]
-        let length = plain.length + padding.len() as u16 + 1;
-        let additional_data = flat!([23], LEGACY_VERSION_BYTES, length.to_be_bytes());
+        let plaintext_length = plain.length + padding.len() as u16 + 1;
 
-        let encrypted =
-            crypt::aead::encrypt_aes_256_gcm(&key, &nonce, &plaintext, &additional_data)?.0;
+        let length = plaintext_length + 16;
+
+        let additional_data = flat!(
+            [APPLICATION_DATA],
+            LEGACY_VERSION_BYTES,
+            length.to_be_bytes()
+        );
+
+        let (ciphertext, tag) =
+            crypt::aead::encrypt_aes_256_gcm(&key, &nonce, &plaintext, &additional_data)?;
+        let encrypted_record = flat!(ciphertext, tag).into_boxed_slice();
 
         Ok(Self {
             length,
-            encrypted_record: encrypted,
+            encrypted_record,
         })
+    }
+
+    pub fn decrypt(&self, key: [u8; 32], nonce: [u8; 12]) -> Result<TlsPlaintext> {
+        let additional_data = flat!(
+            [APPLICATION_DATA],
+            LEGACY_VERSION_BYTES,
+            self.length.to_be_bytes()
+        );
+
+        let (ciphertext, tag) = self
+            .encrypted_record
+            .split_at(self.encrypted_record.len() - 16);
+
+        // AEAD-Decrypt(peer_write_key, nonce, additional_data, AEADEncrypted)
+
+        let plaintext =
+            crypt::aead::decrypt_aes_256_gcm(&key, &nonce, ciphertext, &additional_data, tag)?;
+
+        let index = plaintext.iter().rposition(|x| *x != 0).ok_or(anyhow!(""))?;
+
+        let content = &plaintext[..index];
+        let content_type = plaintext[index];
+
+        TlsPlaintext::from_raw(&flat!(
+            [content_type],
+            LEGACY_VERSION_BYTES,
+            (content.len() as u16).to_be_bytes(),
+            content
+        ))
     }
 
     pub fn to_raw(&self) -> Box<[u8]> {
         self.ser()
+    }
+
+    pub fn from_raw(raw: &[u8]) -> Result<Self> {
+        Self::deser(raw)
     }
 }
 
@@ -159,7 +202,7 @@ impl RawDeser for TlsCiphertext {
 impl RawSer for TlsCiphertext {
     fn ser(&self) -> Box<[u8]> {
         flat!(
-            [23],
+            [APPLICATION_DATA],
             LEGACY_VERSION_BYTES,
             self.length.to_be_bytes(),
             &self.encrypted_record

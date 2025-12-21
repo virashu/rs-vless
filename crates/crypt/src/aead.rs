@@ -1,6 +1,6 @@
 //! <https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf>
 
-use anyhow::{Result, ensure};
+use anyhow::{Result, anyhow, ensure};
 
 use crate::block_cipher::{
     BlockCipher,
@@ -149,6 +149,59 @@ pub fn encrypt(
     Ok((ciphertext, tag))
 }
 
+#[allow(clippy::missing_errors_doc)]
+pub fn decrypt(
+    block_cipher: &dyn BlockCipher,
+    iv: &[u8],
+    ciphertext: &[u8],
+    additional_data: &[u8],
+    tag: &[u8],
+) -> Result<Box<[u8]>> {
+    let hash_key: [u8; 16] = (*block_cipher.encrypt(&[0; 16])).try_into()?;
+
+    let counter_initial: [u8; 16] = if iv.len() == 12 {
+        let mut x = [0; 16];
+        x[0..12].copy_from_slice(iv);
+        x[12..16].copy_from_slice(&1u32.to_be_bytes());
+        x
+    } else {
+        let mut x = Vec::new();
+        let s = 16 * iv.len().div_ceil(16) - iv.len();
+        x.extend(iv);
+        x.extend([0].repeat(s + 8));
+        x.extend((iv.len() as u64).to_be_bytes());
+        ghash(&hash_key, &x)?
+    };
+
+    let plaintext = gctr(block_cipher, inc(counter_initial), ciphertext)?;
+
+    let tag_block_input = {
+        let u = 16 * ciphertext.len().div_ceil(16) - ciphertext.len();
+        let v = 16 * additional_data.len().div_ceil(16) - additional_data.len();
+
+        let mut acc = Vec::new();
+
+        acc.extend(additional_data);
+        acc.extend([0u8].repeat(v));
+
+        acc.extend(ciphertext);
+        acc.extend([0u8].repeat(u));
+
+        acc.extend(((additional_data.len() * 8) as u64).to_be_bytes());
+        acc.extend(((ciphertext.len() * 8) as u64).to_be_bytes());
+
+        acc
+    };
+    let tag_block = ghash(&hash_key, &tag_block_input)?;
+    let tag_check = gctr(block_cipher, counter_initial, &tag_block)?;
+
+    if *tag != *tag_check {
+        return Err(anyhow!("Tag does not match"));
+    }
+
+    Ok(plaintext)
+}
+
 pub fn encrypt_aes_128_gcm(
     secret: &[u8],
     iv: &[u8],
@@ -169,6 +222,18 @@ pub fn encrypt_aes_256_gcm(
     let block_cipher = Aes::new(Aes256Cipher::new(secret.try_into()?));
 
     encrypt(&block_cipher, iv, plaintext, additional_data)
+}
+
+pub fn decrypt_aes_256_gcm(
+    secret: &[u8],
+    iv: &[u8],
+    ciphertext: &[u8],
+    additional_data: &[u8],
+    tag: &[u8],
+) -> Result<Box<[u8]>> {
+    let block_cipher = Aes::new(Aes256Cipher::new(secret.try_into()?));
+
+    decrypt(&block_cipher, iv, ciphertext, additional_data, tag)
 }
 
 /// <https://csrc.nist.rip/groups/ST/toolkit/BCM/documents/proposedmodes/gcm/gcm-spec.pdf>

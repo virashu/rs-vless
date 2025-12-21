@@ -1,6 +1,9 @@
 use anyhow::Result;
 
-use crate::{macros::auto_try_from, parse::RawDeser};
+use crate::{
+    macros::auto_try_from,
+    parse::{RawDeser, RawSer},
+};
 
 auto_try_from! {
     #[repr(u8)]
@@ -58,5 +61,11 @@ impl RawDeser for Alert {
         let description = AlertDescription::try_from(raw[1])?;
 
         Ok(Self { level, description })
+    }
+}
+
+impl RawSer for Alert {
+    fn ser(&self) -> Box<[u8]> {
+        Box::new([self.level as u8, self.description as u8])
     }
 }

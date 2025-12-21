@@ -3,7 +3,7 @@ use crypt::{elliptic::x25519, hash::sha::Sha384};
 use tls::{
     cipher_suite::TLS_AES_256_GCM_SHA384,
     error::TlsAlert,
-    hkdf::{derive_secret, hkdf_extract},
+    hkdf::{derive_secret, hkdf_expand_label, hkdf_extract},
     record::{
         TlsCiphertext, TlsContent, TlsPlaintext,
         handshake::{
@@ -26,6 +26,13 @@ use std::{
 use crate::organized_extensions::OrganizedClientExtensions;
 
 mod organized_extensions;
+
+fn xor<const N: usize>(mut a: [u8; N], b: [u8; N]) -> [u8; N] {
+    for i in 0..N {
+        a[i] ^= b[i];
+    }
+    a
+}
 
 struct TlsContext {
     key_ecdhe: Option<Box<[u8]>>,
@@ -128,25 +135,49 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     let sh_raw = sh_record.to_raw();
     conn.write_all(&sh_raw)?;
 
+    // Key schedule
+
     let early_secret = hkdf_extract::<Sha384>(&[0; 48], context.key_psk());
 
     let handshake_secret = hkdf_extract::<Sha384>(
         &derive_secret::<Sha384>(&early_secret, "derived", &[]),
         context.key_ecdhe(),
     );
+
     let transcript = {
         let mut x = Vec::new();
         x.extend(&ch_raw[5..]);
         x.extend(&sh_raw[5..]);
         x.into_boxed_slice()
     };
-    let server_handshake_traffic_secret =
-        derive_secret::<Sha384>(&handshake_secret, "s hs traffic", &transcript);
+    let server_handshake_traffic_secret: [u8; 48] =
+        derive_secret::<Sha384>(&handshake_secret, "s hs traffic", &transcript)
+            .as_ref()
+            .try_into()?;
+
+    let server_write_key: [u8; 32] =
+        hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "key", &[], 32)
+            .as_ref()
+            .try_into()?;
+
+    let server_write_iv: [u8; 12] =
+        hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "iv", &[], 12)
+            .as_ref()
+            .try_into()?;
 
     let main_secret = hkdf_extract::<Sha384>(
         &derive_secret::<Sha384>(&handshake_secret, "derived", &[]),
         &[0; 48],
     );
+
+    let client_handshake_traffic_secret: [u8; 48] =
+        derive_secret::<Sha384>(&handshake_secret, "c hs traffic", &transcript)
+            .as_ref()
+            .try_into()?;
+    let client_write_key: [u8; 32] =
+        hkdf_expand_label::<Sha384>(&client_handshake_traffic_secret, "key", &[], 32)
+            .as_ref()
+            .try_into()?;
 
     // EncryptedExtensions
 
@@ -157,14 +188,12 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     }
 
     {
-        let e_e = Handshake::EncryptedExtensions(EncryptedExtensions::new(&ee_extensions)?);
-        let record = TlsPlaintext::new_handshake(e_e)?;
-        let encrypted = TlsCiphertext::encrypt(
-            &record,
-            (*server_handshake_traffic_secret).try_into()?,
-            context.pad_nonce(),
-        )?;
-        conn.write_all(&encrypted.to_raw())?;
+        let ee = Handshake::EncryptedExtensions(EncryptedExtensions::new(&ee_extensions)?);
+        let record = TlsPlaintext::new_handshake(ee)?;
+        let nonce = xor(context.pad_nonce(), server_write_iv);
+        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
+        let ee_raw = encrypted.to_raw();
+        conn.write_all(&ee_raw)?;
     }
 
     // CertificateRequest
@@ -178,7 +207,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     //     let record = TlsPlaintext::new_handshake(c_r)?;
     //     let encrypted = TlsCiphertext::encrypt(
     //         &record,
-    //         (*server_handshake_traffic_secret).try_into()?,
+    //         server_write_key,
     //         context.pad_nonce(),
     //     )?;
     //     conn.write_all(&encrypted.to_raw())?;

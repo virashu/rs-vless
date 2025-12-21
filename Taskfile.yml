@@ -1,4 +1,9 @@
 version: "3"
 
 tasks:
-  test: curl -X GET https://127.0.0.1:3001 --tlsv1.3
+  test: curl https://127.0.0.1:3001 --tlsv1.3 -v
+  run: cargo run
+  run_trace:
+    cmd: cargo run
+    env:
+      RUST_LIB_BACKTRACE: 1
