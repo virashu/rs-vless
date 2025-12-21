@@ -1,7 +1,6 @@
 //! <https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf>
 
 use anyhow::{Result, ensure};
-use num_bigint::BigUint;
 
 use crate::block_cipher::{
     BlockCipher,
@@ -19,28 +18,6 @@ fn xor_dyn(a: &[u8], b: &[u8]) -> Result<Box<[u8]>> {
     ensure!(a.len() == b.len(), "Len is not equal");
 
     Ok(a.iter().zip(b.iter()).map(|(x, y)| x ^ y).collect())
-}
-
-fn mul_n(a: [u8; 16], b: [u8; 16]) -> [u8; 16] {
-    let a = BigUint::from_bytes_be(&a);
-    let b = BigUint::from_bytes_be(&b);
-
-    // let mut c: BigUint = a * b;
-    // if c >= (BigUint::from(1u32) << 128) {
-    //     c ^= BigUint::from(0b1000_0111u32);
-    // }
-    // let cut: BigUint = c % (BigUint::from(1u32) << 128);
-
-    // GF(2^128)
-    // = x^128 + x^7 + x^2 + x + 1
-    let modulo = (BigUint::from(1u32) << 128) + BigUint::from(0b1000_0111u32);
-    let cut: BigUint = (a * b) % modulo;
-
-    let res = cut.to_bytes_be();
-    let n = res.len();
-    let mut r = [0; 16];
-    r[..n].copy_from_slice(&res[..n]);
-    r
 }
 
 fn mul(x: [u8; 16], y: [u8; 16]) -> [u8; 16] {
@@ -82,26 +59,9 @@ fn ghash(hash_key: &[u8; 16], value: &[u8]) -> Result<[u8; 16]> {
 
     let mut hash = [0; 16];
 
-    for (block, i) in value.as_chunks().0.iter().zip(1..) {
-        println!("GH_BLOCK_{i}   = {block:02x?}");
-
+    for block in value.as_chunks().0 {
         let xor_res = xor(hash, *block);
-        println!(
-            "(~) {:032x?} XOR {:032x?} = {:032x?}",
-            u128::from_be_bytes(hash),
-            u128::from_be_bytes(*block),
-            u128::from_be_bytes(xor_res),
-        );
-
         hash = mul(xor_res, *hash_key);
-        println!(
-            "(~) {:032x?} MUL {:032x?} = {:032x?}",
-            u128::from_be_bytes(xor_res),
-            u128::from_be_bytes(*hash_key),
-            u128::from_be_bytes(hash),
-        );
-
-        println!("GH_ITER_{i}    = {hash:02x?}");
     }
 
     Ok(hash)
@@ -122,11 +82,8 @@ fn gctr(
     let (blocks, remainder) = input.as_chunks::<16>();
     let mut ciphertext: Vec<u8> = Vec::new();
 
-    for (i, block_i) in (1..).zip(blocks) {
-        println!("CB_{i}    = {counter:02x?}");
-
+    for block_i in blocks {
         let key_i: [u8; 16] = (*block_cipher.encrypt(&counter)).try_into()?;
-        println!("E(CB_{i}) = {key_i:02x?}");
 
         let ciphertext_i = xor(*block_i, key_i);
         ciphertext.extend(ciphertext_i);
@@ -152,7 +109,6 @@ pub fn encrypt(
     additional_data: &[u8],
 ) -> Result<(Ciphertext, Tag)> {
     let hash_key: [u8; 16] = (*block_cipher.encrypt(&[0; 16])).try_into()?;
-    println!("H\t= {hash_key:02x?}");
 
     let counter_initial: [u8; 16] = if iv.len() == 12 {
         let mut x = [0; 16];
@@ -167,10 +123,8 @@ pub fn encrypt(
         x.extend((iv.len() as u64).to_be_bytes());
         ghash(&hash_key, &x)?
     };
-    println!("CTR_0\t= {counter_initial:02x?}");
 
     let ciphertext = gctr(block_cipher, inc(counter_initial), plaintext)?;
-    println!("C\t= {ciphertext:02x?}");
 
     let tag_block_input = {
         let u = 16 * ciphertext.len().div_ceil(16) - ciphertext.len();
@@ -191,8 +145,6 @@ pub fn encrypt(
     };
     let tag_block = ghash(&hash_key, &tag_block_input)?;
     let tag = gctr(block_cipher, counter_initial, &tag_block)?;
-
-    println!("T\t= {tag:02x?}");
 
     Ok((ciphertext, tag))
 }
@@ -223,21 +175,6 @@ pub fn encrypt_aes_256_gcm(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_mul() {
-        // 0x0388dace60b6a392f328c2b971b2fe78 * 0x66e94bd4ef8a2c3b884cfa59ca342b2e
-        // = 0x5e2ec746917062882c85b0685353deb7
-
-        let a = 0x0388dace60b6a392f328c2b971b2fe78u128;
-        let b = 0x66e94bd4ef8a2c3b884cfa59ca342b2eu128;
-        let expected = 0x5e2ec746917062882c85b0685353deb7u128;
-
-        let res = u128::from_be_bytes(mul(a.to_be_bytes(), b.to_be_bytes()));
-        println!("= {res:016x}");
-
-        assert_eq!(expected, res);
-    }
 
     #[test]
     fn test_aead_aes_128_gcm_1() {
