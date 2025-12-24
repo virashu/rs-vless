@@ -16,7 +16,7 @@ impl Hasher for Sha384 {
         let l_bytes = value.len();
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let k_bytes = ((Self::BLOCK_SIZE as i32 - 8) - (l_bytes as i32 + 1))
+        let k_bytes = ((Self::BLOCK_SIZE as i32 - 16) - (l_bytes as i32 + 1))
             .rem_euclid(Self::BLOCK_SIZE as i32) as usize;
 
         let message = {
@@ -24,7 +24,7 @@ impl Hasher for Sha384 {
             x.extend(value);
             x.push(0b1000_0000);
             x.extend([0u8].repeat(k_bytes));
-            x.extend(((l_bytes * 8) as u64).to_be_bytes());
+            x.extend(((l_bytes * 8) as u128).to_be_bytes());
             x
         };
 
@@ -32,12 +32,10 @@ impl Hasher for Sha384 {
             .chunks_exact(Self::BLOCK_SIZE)
             .map(|block| {
                 (*block
-                    .chunks_exact(8)
-                    .map(|word| {
-                        u64::from_be_bytes([
-                            word[0], word[1], word[2], word[3], word[4], word[5], word[6], word[7],
-                        ])
-                    })
+                    .as_chunks::<8>()
+                    .0
+                    .iter()
+                    .map(|chunk| u64::from_be_bytes(*chunk))
                     .collect::<Box<[u64]>>())
                 .try_into()
                 .unwrap()
@@ -46,7 +44,7 @@ impl Hasher for Sha384 {
 
         let n_blocks = blocks.len();
 
-        let mut hash = Vec::from([INITIAL_SHA384]);
+        let mut hash = INITIAL_SHA384;
 
         for i in 1..=n_blocks {
             // Prepare the message schedule
@@ -60,14 +58,14 @@ impl Hasher for Sha384 {
             }
 
             // Initialize the working variables
-            let mut a = hash[i - 1][0];
-            let mut b = hash[i - 1][1];
-            let mut c = hash[i - 1][2];
-            let mut d = hash[i - 1][3];
-            let mut e = hash[i - 1][4];
-            let mut f = hash[i - 1][5];
-            let mut g = hash[i - 1][6];
-            let mut h = hash[i - 1][7];
+            let mut a = hash[0];
+            let mut b = hash[1];
+            let mut c = hash[2];
+            let mut d = hash[3];
+            let mut e = hash[4];
+            let mut f = hash[5];
+            let mut g = hash[6];
+            let mut h = hash[7];
 
             for t in 0..80 {
                 let t1 = h
@@ -87,23 +85,80 @@ impl Hasher for Sha384 {
                 a = t1.wrapping_add(t2);
             }
 
-            let hash_value = [
-                a.wrapping_add(hash[i - 1][0]),
-                b.wrapping_add(hash[i - 1][1]),
-                c.wrapping_add(hash[i - 1][2]),
-                d.wrapping_add(hash[i - 1][3]),
-                e.wrapping_add(hash[i - 1][4]),
-                f.wrapping_add(hash[i - 1][5]),
-                g.wrapping_add(hash[i - 1][6]),
-                h.wrapping_add(hash[i - 1][7]),
+            hash = [
+                hash[0].wrapping_add(a),
+                hash[1].wrapping_add(b),
+                hash[2].wrapping_add(c),
+                hash[3].wrapping_add(d),
+                hash[4].wrapping_add(e),
+                hash[5].wrapping_add(f),
+                hash[6].wrapping_add(g),
+                hash[7].wrapping_add(h),
             ];
-            hash.push(hash_value);
         }
 
-        hash[n_blocks]
+        hash[..6]
             .iter()
-            .take(6)
             .flat_map(|word| word.to_be_bytes())
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use hex_literal::hex;
+
+    use super::*;
+
+    #[test]
+    fn test_sha384_empty() {
+        let input = b"";
+        let output = Sha384::hash(input);
+
+        assert_eq!(
+            *output,
+            hex!(
+                "38b060a751ac9638 4cd9327eb1b1e36a 21fdb71114be0743 4c0cc7bf63f6e1da 274edebfe76f65fb d51ad2f14898b95b"
+            )
+        );
+    }
+
+    #[test]
+    fn test_sha384_24bits() {
+        let input = b"abc";
+        let output = Sha384::hash(input);
+
+        assert_eq!(
+            *output,
+            hex!(
+                "cb00753f45a35e8b b5a03d699ac65007 272c32ab0eded163 1a8b605a43ff5bed 8086072ba1e7cc23 58baeca134c825a7"
+            )
+        );
+    }
+
+    #[test]
+    fn test_sha384_896bits() {
+        let input = b"abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
+        let output = Sha384::hash(input);
+
+        assert_eq!(
+            *output,
+            hex!(
+                "09330c33f71147e8 3d192fc782cd1b47 53111b173b3b05d2 2fa08086e3b0f712 fcc7c71a557e2db9 66c3e9fa91746039"
+            )
+        );
+    }
+
+    #[test]
+    fn test_sha384_repetitions() {
+        let input = b"a".repeat(1_000_000);
+        let output = Sha384::hash(&input);
+
+        assert_eq!(
+            *output,
+            hex!(
+                "9d0e1809716474cb 086e834e310a4a1c ed149e9c00f24852 7972cec5704c2a5b 07b8b3dc38ecc4eb ae97ddd87f3d8985"
+            )
+        );
     }
 }

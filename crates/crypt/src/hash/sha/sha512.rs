@@ -16,7 +16,7 @@ impl Hasher for Sha512 {
         let l_bytes = value.len();
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let k_bytes = ((Self::BLOCK_SIZE as i32 - 8) - (l_bytes as i32 + 1))
+        let k_bytes = ((Self::BLOCK_SIZE as i32 - 16) - (l_bytes as i32 + 1))
             .rem_euclid(Self::BLOCK_SIZE as i32) as usize;
 
         let message = {
@@ -24,7 +24,7 @@ impl Hasher for Sha512 {
             x.extend(value);
             x.push(0b1000_0000);
             x.extend([0u8].repeat(k_bytes));
-            x.extend(((l_bytes * 8) as u64).to_be_bytes());
+            x.extend(((l_bytes * 8) as u128).to_be_bytes());
             x
         };
 
