@@ -150,26 +150,22 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         x.extend(&sh_raw[5..]);
         x.into_boxed_slice()
     };
+
+    // Server keys
     let server_handshake_traffic_secret: [u8; 48] =
         derive_secret::<Sha384>(&handshake_secret, "s hs traffic", &transcript)
             .as_ref()
             .try_into()?;
-
     let server_write_key: [u8; 32] =
         hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "key", &[], 32)
             .as_ref()
             .try_into()?;
-
     let server_write_iv: [u8; 12] =
         hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "iv", &[], 12)
             .as_ref()
             .try_into()?;
 
-    let main_secret = hkdf_extract::<Sha384>(
-        &derive_secret::<Sha384>(&handshake_secret, "derived", &[]),
-        &[0; 48],
-    );
-
+    // Client keys
     let client_handshake_traffic_secret: [u8; 48] =
         derive_secret::<Sha384>(&handshake_secret, "c hs traffic", &transcript)
             .as_ref()
@@ -178,6 +174,15 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         hkdf_expand_label::<Sha384>(&client_handshake_traffic_secret, "key", &[], 32)
             .as_ref()
             .try_into()?;
+    let client_write_iv: [u8; 12] =
+        hkdf_expand_label::<Sha384>(&client_handshake_traffic_secret, "iv", &[], 12)
+            .as_ref()
+            .try_into()?;
+
+    let main_secret = hkdf_extract::<Sha384>(
+        &derive_secret::<Sha384>(&handshake_secret, "derived", &[]),
+        &[0; 48],
+    );
 
     // EncryptedExtensions
 

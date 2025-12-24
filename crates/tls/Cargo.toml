@@ -12,6 +12,7 @@ crypt.path = "../crypt"
 strum = { version = "0.27.2", optional = true }
 strum_macros = { version = "0.27.2", optional = true }
 thiserror = "2.0.17"
+hex-literal = "1.1.0"
 
 [features]
 default = ["trace"]
