@@ -21,17 +21,22 @@ impl<T> DataVec8<T> {
     }
 }
 
-// impl<T> From<&[T]> for DataVec8<T>
-// where
-//     T: Clone,
-// {
-//     fn from(value: &[T]) -> Self {
-//         Self {
-//             length: value.,
-//             inner: Box::from(value),
-//         }
-//     }
-// }
+impl<T> TryFrom<&[T]> for DataVec8<T>
+where
+    T: RawSize + Clone,
+{
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[T]) -> Result<Self, Self::Error> {
+        let length: usize = value.iter().map(RawSize::size).sum();
+        let length: u8 = length.try_into()?;
+
+        Ok(Self {
+            length,
+            inner: Box::from(value),
+        })
+    }
+}
 
 impl<T> RawSize for DataVec8<T> {
     fn size(&self) -> usize {

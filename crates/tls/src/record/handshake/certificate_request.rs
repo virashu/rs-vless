@@ -53,9 +53,9 @@ pub struct CertificateRequest {
 }
 
 impl CertificateRequest {
-    pub fn new(extensions: &[CertificateRequestExtension]) -> Result<Self> {
+    pub fn new(context: &[u8], extensions: &[CertificateRequestExtension]) -> Result<Self> {
         Ok(Self {
-            certificate_request_context: DataVec8::new(),
+            certificate_request_context: DataVec8::try_from(context)?,
             extensions: DataVec16::try_from(extensions)?,
         })
     }

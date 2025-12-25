@@ -1,6 +1,9 @@
 use anyhow::Result;
 
-use crate::parse::{DataVec8, DataVec16, DataVec24, RawDeser, RawSize};
+use crate::{
+    macros::flat,
+    parse::{DataVec8, DataVec16, DataVec24, RawDeser, RawSer, RawSize},
+};
 
 #[derive(Clone, Debug)]
 pub struct CertificateExtension {}
@@ -15,6 +18,28 @@ pub enum CertificateEntryContent {
     },
 }
 
+impl RawSer for CertificateEntryContent {
+    fn ser(&self) -> Box<[u8]> {
+        match self {
+            CertificateEntryContent::X509 { cert_data } => cert_data.ser(),
+            CertificateEntryContent::RawPublicKey {
+                asn1_subject_public_key_info,
+            } => asn1_subject_public_key_info.ser(),
+        }
+    }
+}
+
+impl RawSize for CertificateEntryContent {
+    fn size(&self) -> usize {
+        match self {
+            CertificateEntryContent::X509 { cert_data } => cert_data.size(),
+            CertificateEntryContent::RawPublicKey {
+                asn1_subject_public_key_info,
+            } => asn1_subject_public_key_info.size(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct CertificateEntry {
     pub content: CertificateEntryContent,
@@ -22,9 +47,20 @@ pub struct CertificateEntry {
     pub extensions: DataVec16<CertificateExtension>,
 }
 
+impl CertificateEntry {
+    pub fn new(cert: &[u8]) -> Result<Self> {
+        Ok(Self {
+            content: CertificateEntryContent::X509 {
+                cert_data: DataVec24::try_from(cert)?,
+            },
+            extensions: DataVec16::new(),
+        })
+    }
+}
+
 impl RawSize for CertificateEntry {
     fn size(&self) -> usize {
-        todo!()
+        self.content.size() + self.extensions.size()
     }
 }
 
@@ -34,10 +70,25 @@ impl RawDeser for CertificateEntry {
     }
 }
 
+impl RawSer for CertificateEntry {
+    fn ser(&self) -> Box<[u8]> {
+        flat!(self.content.ser()).into_boxed_slice()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Certificate {
     pub certificate_request_context: DataVec8<u8>,
     pub certificate_list: DataVec24<CertificateEntry>,
+}
+
+impl Certificate {
+    pub fn new(context: &[u8], certificates: &[CertificateEntry]) -> Result<Self> {
+        Ok(Self {
+            certificate_request_context: DataVec8::try_from(context)?,
+            certificate_list: DataVec24::try_from(certificates)?,
+        })
+    }
 }
 
 impl RawDeser for Certificate {
@@ -49,5 +100,15 @@ impl RawDeser for Certificate {
             certificate_request_context: context,
             certificate_list: list,
         })
+    }
+}
+
+impl RawSer for Certificate {
+    fn ser(&self) -> Box<[u8]> {
+        flat!(
+            self.certificate_request_context.ser(),
+            self.certificate_list.ser()
+        )
+        .into_boxed_slice()
     }
 }

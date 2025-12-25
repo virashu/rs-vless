@@ -95,7 +95,6 @@ mod tests {
         let empty_hash = Sha384::hash(&[]);
 
         let derived_secret = hkdf_expand_label::<Sha384>(&early_secret, "derived", &empty_hash, 48);
-        println!("{derived_secret:02x?}");
         let handshake_secret = hkdf_extract::<Sha384>(&derived_secret, &shared_secret);
         assert_eq!(
             *handshake_secret,

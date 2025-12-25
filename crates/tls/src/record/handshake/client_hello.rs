@@ -1,9 +1,10 @@
 use anyhow::{Context, Result, bail};
 
 use super::extension::{
-    EcPointFormats, KeyShareClientHello, PreSharedKeyExtensionClientHello, ProtocolNameList,
-    PskKeyExchangeModes, RenegotiationInfo, ServerNameList, SignatureAlgorithms, StatusRequest,
-    SupportedGroups, SupportedVersionsClientHello, extension_types,
+    CertificateCompressionAlgorithms, EcPointFormats, KeyShareClientHello,
+    PreSharedKeyExtensionClientHello, ProtocolNameList, PskKeyExchangeModes, RenegotiationInfo,
+    ServerNameList, SignatureAlgorithms, StatusRequest, SupportedGroups,
+    SupportedVersionsClientHello, extension_types,
 };
 use crate::{
     cipher_suite::CipherSuite,
@@ -30,8 +31,10 @@ pub enum ClientHelloExtensionContent {
     SignedCertificateTimestamp,
     /// ID: 23
     ExtendedMainSecret,
-    // 27
-    // 28
+    /// ID: 27
+    CertificateCompressionAlgorithms(CertificateCompressionAlgorithms),
+    /// ID: 28
+    RecordSizeLimit(/* */),
     /// ID: 35
     SessionTicket(/* TODO */),
     /// ID: 41
@@ -77,6 +80,7 @@ impl RawDeser for ClientHelloExtensionContent {
             }
             18 => Self::SignedCertificateTimestamp,
             extension_types::EXTENDED_MAIN_SECRET => Self::ExtendedMainSecret,
+            extension_types::COMPRESS_CERTIFICATE => Self::CertificateCompressionAlgorithms(CertificateCompressionAlgorithms::deser(data)?),
             extension_types::SESSION_TICKET => Self::SessionTicket(),
             extension_types::PRE_SHARED_KEY => {
                 Self::PreSharedKey(PreSharedKeyExtensionClientHello::deser(data)?)

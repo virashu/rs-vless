@@ -76,7 +76,7 @@ impl RawDeser for Handshake {
 impl RawSer for Handshake {
     fn ser(&self) -> Box<[u8]> {
         match self {
-            Handshake::ServerHello(s_h) => {
+            Self::ServerHello(s_h) => {
                 let mut res = Vec::new();
 
                 let raw = s_h.ser();
@@ -91,7 +91,7 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
-            Handshake::EncryptedExtensions(e_e) => {
+            Self::EncryptedExtensions(e_e) => {
                 let mut res = Vec::new();
 
                 let raw = e_e.ser();
@@ -106,7 +106,7 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
-            Handshake::CertificateRequest(c_r) => {
+            Self::CertificateRequest(c_r) => {
                 let mut res = Vec::new();
 
                 let raw = c_r.ser();
@@ -121,7 +121,22 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
-            _ => todo!(),
+            Self::Certificate(cert) => {
+                let mut res = Vec::new();
+
+                let raw = cert.ser();
+                let length = raw.len();
+                let length_bytes = TryInto::<u32>::try_into(length)
+                    .expect("Certificate size exceeds maximum u32 value")
+                    .to_be_bytes();
+
+                res.push(handshake_types::CERTIFICATE);
+                res.extend(&length_bytes[1..=3]);
+                res.extend(raw);
+
+                res.into_boxed_slice()
+            }
+            _ => todo!("{:?}", self),
         }
     }
 }

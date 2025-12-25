@@ -8,7 +8,7 @@ use tls::{
         TlsCiphertext, TlsContent, TlsPlaintext,
         handshake::{
             Handshake,
-            certificate::Certificate,
+            certificate::{Certificate, CertificateEntry},
             certificate_request::{CertificateRequest, CertificateRequestExtension},
             encrypted_extensions::EncryptedExtensions,
             extension::{KeyShareEntry, NamedGroup, SignatureScheme},
@@ -18,6 +18,7 @@ use tls::{
 };
 
 use std::{
+    fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::atomic::{AtomicU64, Ordering},
@@ -64,7 +65,7 @@ impl TlsContext {
 
     pub fn pad_nonce<const L: usize>(&self) -> [u8; L] {
         let mut x = [0; L];
-        x[..8].copy_from_slice(&self.nonce().to_be_bytes());
+        x[(L - 8)..L].copy_from_slice(&self.nonce().to_be_bytes());
         x
     }
 }
@@ -188,9 +189,9 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     let mut ee_extensions = Vec::new();
 
-    if extended {
-        ee_extensions.push(ServerHelloExtension::new_extended_main_secret());
-    }
+    // if extended {
+    //     ee_extensions.push(ServerHelloExtension::new_extended_main_secret());
+    // }
 
     {
         let ee = Handshake::EncryptedExtensions(EncryptedExtensions::new(&ee_extensions)?);
@@ -204,32 +205,32 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     // CertificateRequest
 
     // {
-    //     let c_r = Handshake::CertificateRequest(CertificateRequest::new(&[
-    //         CertificateRequestExtension::new_signature_algorithms(&[
+    //     let cr = Handshake::CertificateRequest(CertificateRequest::new(
+    //         &[],
+    //         &[CertificateRequestExtension::new_signature_algorithms(&[
     //             SignatureScheme::rsa_pkcs1_sha256,
-    //         ])?,
-    //     ])?);
-    //     let record = TlsPlaintext::new_handshake(c_r)?;
-    //     let encrypted = TlsCiphertext::encrypt(
-    //         &record,
-    //         server_write_key,
-    //         context.pad_nonce(),
-    //     )?;
-    //     conn.write_all(&encrypted.to_raw())?;
+    //         ])?],
+    //     )?);
+    //     let record = TlsPlaintext::new_handshake(cr)?;
+    //     let nonce = xor(context.pad_nonce(), server_write_iv);
+    //     let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
+    //     let cr_raw = encrypted.to_raw();
+    //     conn.write_all(&cr_raw)?;
     // }
 
     // Certificate
 
-    // {
-    //     let cert = Handshake::Certificate(Certificate {});
-    //     let record = TlsPlaintext::new_handshake(cert)?;
-    //     let encrypted = TlsCiphertext::encrypt(
-    //         &record,
-    //         (*server_handshake_traffic_secret).try_into()?,
-    //         context.pad_nonce(),
-    //     )?;
-    //     conn.write_all(&encrypted.to_raw())?;
-    // }
+    let certificate = fs::read("cert.cer")?;
+    {
+        let cert = Handshake::Certificate(Certificate::new(
+            &[],
+            &[CertificateEntry::new(&certificate)?],
+        )?);
+        let record = TlsPlaintext::new_handshake(cert)?;
+        let nonce = xor(context.pad_nonce(), server_write_iv);
+        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
+        conn.write_all(&encrypted.to_raw())?;
+    }
 
     Ok(())
 }
