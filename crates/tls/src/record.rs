@@ -137,7 +137,7 @@ impl TlsCiphertext {
         );
 
         let (ciphertext, tag) =
-            crypt::aead::encrypt_aes_256_gcm(&key, &nonce, &plaintext, &additional_data)?;
+            crypt::aead::aes_gcm::encrypt_aes_256_gcm(&key, &nonce, &plaintext, &additional_data)?;
         let encrypted_record = flat!(ciphertext, tag).into_boxed_slice();
 
         Ok(Self {
@@ -159,8 +159,13 @@ impl TlsCiphertext {
 
         // AEAD-Decrypt(peer_write_key, nonce, additional_data, AEADEncrypted)
 
-        let plaintext =
-            crypt::aead::decrypt_aes_256_gcm(&key, &nonce, ciphertext, &additional_data, tag)?;
+        let plaintext = crypt::aead::aes_gcm::decrypt_aes_256_gcm(
+            &key,
+            &nonce,
+            ciphertext,
+            &additional_data,
+            tag,
+        )?;
 
         let index = plaintext.iter().rposition(|x| *x != 0).ok_or(anyhow!(""))?;
 
