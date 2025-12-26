@@ -4,3 +4,4 @@ pub mod elliptic;
 pub mod hash;
 pub mod hkdf;
 pub mod hmac;
+pub mod symmetric;
