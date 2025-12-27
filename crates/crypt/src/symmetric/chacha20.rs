@@ -55,7 +55,7 @@ fn inner_block(mut state: [u32; 16]) -> [u32; 16] {
 
 const CHACHA20_INIT: [u32; 4] = [0x6170_7865, 0x3320_646e, 0x7962_2d32, 0x6b20_6574];
 
-fn chacha20_block(key: [u8; 32], counter: u32, nonce: [u8; 12]) -> [u8; 64] {
+pub(crate) fn chacha20_block(key: [u8; 32], counter: u32, nonce: [u8; 12]) -> [u8; 64] {
     let mut state = [0u32; 16];
     state[0..4].copy_from_slice(&CHACHA20_INIT);
 
@@ -90,7 +90,12 @@ fn chacha20_block(key: [u8; 32], counter: u32, nonce: [u8; 12]) -> [u8; 64] {
     res
 }
 
-fn chacha20_encrypt(key: [u8; 32], counter: u32, nonce: [u8; 12], plaintext: &[u8]) -> Box<[u8]> {
+pub fn chacha20_encrypt(
+    key: [u8; 32],
+    counter: u32,
+    nonce: [u8; 12],
+    plaintext: &[u8],
+) -> Box<[u8]> {
     let (blocks, remainder) = plaintext.as_chunks::<64>();
 
     let mut encrypted = Vec::new();
@@ -155,7 +160,7 @@ mod tests {
         let initial_counter = 1;
 
         let plaintext = b"Ladies and Gentlemen of the class of '99: If I could \
-                    offer you only one tip for the future, sunscreen would be it.";
+            offer you only one tip for the future, sunscreen would be it.";
         let output = hex!(
             "6e 2e 35 9a 25 68 f9 80 41 ba 07 28 dd 0d 69 81
              e9 7e 7a ec 1d 43 60 c2 0a 27 af cc fd 9f ae 0b

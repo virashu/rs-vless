@@ -1,17 +1,17 @@
 use hex_literal::hex;
 use num_bigint::BigUint;
 
-fn poly1305_mac(msg: &[u8], key: [u8; 32]) -> [u8; 16] {
+pub fn poly1305_mac(msg: &[u8], key: [u8; 32]) -> [u8; 16] {
     let r = BigUint::from_bytes_le(&key[0..16]);
     let r = r & BigUint::from(0x0fff_fffc_0fff_fffc_0fff_fffc_0fff_ffffu128);
     let s = BigUint::from_bytes_le(&key[16..32]);
     let mut acc = BigUint::ZERO;
     let p = BigUint::from_bytes_be(&hex!("03fffffffffffffffffffffffffffffffb"));
 
-    for i in 1..(msg.len().div_ceil(16)) {
+    for chunk in msg.chunks(16) {
         let bytes = {
             let mut x = Vec::new();
-            x.extend(&msg[((i - 1) * 16)..(i * 16)]);
+            x.extend(chunk);
             x.push(0x01);
             x
         };
