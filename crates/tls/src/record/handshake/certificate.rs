@@ -8,6 +8,12 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct CertificateExtension {}
 
+impl RawSer for CertificateExtension {
+    fn ser(&self) -> Box<[u8]> {
+        Box::new([])
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum CertificateEntryContent {
     /// ID: 0
@@ -72,7 +78,7 @@ impl RawDeser for CertificateEntry {
 
 impl RawSer for CertificateEntry {
     fn ser(&self) -> Box<[u8]> {
-        flat!(self.content.ser()).into_boxed_slice()
+        flat!(self.content.ser(), self.extensions.ser()).into_boxed_slice()
     }
 }
 

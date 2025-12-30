@@ -74,7 +74,7 @@ where
     fn ser(&self) -> Box<[u8]> {
         let mut res = Vec::new();
 
-        res.extend(self.length.to_be_bytes());
+        res.extend(&self.length.to_be_bytes()[1..4]);
 
         for elem in &self.inner {
             res.extend(elem.ser());

@@ -18,6 +18,7 @@ use tls::{
 };
 
 use std::{
+    collections::HashMap,
     fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
@@ -28,11 +29,25 @@ use crate::organized_extensions::OrganizedClientExtensions;
 
 mod organized_extensions;
 
+const VERSION: u16 = 0x0304;
+
 fn xor<const N: usize>(mut a: [u8; N], b: [u8; N]) -> [u8; N] {
     for i in 0..N {
         a[i] ^= b[i];
     }
     a
+}
+
+struct ClientHelloInfo {
+    legacy_session_id: Box<[u8]>,
+
+    supported_versions: Box<[u16]>,
+    // server_name: Option<String>,
+
+    // Cryptography
+    key_share: HashMap<NamedGroup, Box<[u8]>>,
+    // signature_algorithms: Box<[SignatureScheme]>,
+    server_share: Option<KeyShareEntry>,
 }
 
 struct TlsContext {
@@ -70,9 +85,28 @@ impl TlsContext {
     }
 }
 
-fn handshake(conn: &mut TcpStream) -> Result<()> {
-    const VERSION: u16 = 0x0304;
+fn server_hello(client_info: ClientHelloInfo) -> Result<Box<[u8]>> {
+    let mut sh_extensions = Vec::from([ServerHelloExtension::new_supported_versions(VERSION)]);
 
+    if let Some(share) = client_info.server_share {
+        sh_extensions.push(ServerHelloExtension::new_key_share(share)?);
+    }
+
+    // if flag_psk {
+    //     sh_extensions.push(ServerHelloExtension::new_pre_shared_key(0));
+    // }
+
+    let server_hello = Handshake::ServerHello(ServerHello::new(
+        &rand::random(),
+        &client_info.legacy_session_id,
+        TLS_AES_256_GCM_SHA384,
+        &sh_extensions,
+    ));
+    let sh_record = TlsPlaintext::new_handshake(server_hello)?;
+    Ok(sh_record.to_raw())
+}
+
+fn handshake(conn: &mut TcpStream) -> Result<()> {
     let mut buf = [0; 2800];
     let n = conn.read(&mut buf)?;
 
@@ -107,36 +141,23 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         x25519_shared = None;
     }
 
-    let flag_psk = false;
-
-    let context = TlsContext::new(x25519_shared.map(Box::from), None);
-
     // ServerHello
 
-    let mut sh_extensions = Vec::from([ServerHelloExtension::new_supported_versions(VERSION)]);
+    let server_share = x25519_public.map(|share| KeyShareEntry::new(NamedGroup::x25519, &share));
+    let client_info = ClientHelloInfo {
+        legacy_session_id: client_hello.legacy_session_id,
+        supported_versions: ch_exts.supported_versions.unwrap().versions,
+        // server_name: ch_exts.server_name,
+        key_share,
+        server_share,
+    };
 
-    if let Some(share) = &x25519_public {
-        sh_extensions.push(ServerHelloExtension::new_key_share(KeyShareEntry::new(
-            NamedGroup::x25519,
-            share,
-        ))?);
-    }
-
-    if flag_psk {
-        sh_extensions.push(ServerHelloExtension::new_pre_shared_key(0));
-    }
-
-    let server_hello = Handshake::ServerHello(ServerHello::new(
-        &rand::random(),
-        &client_hello.legacy_session_id,
-        TLS_AES_256_GCM_SHA384,
-        &sh_extensions,
-    ));
-    let sh_record = TlsPlaintext::new_handshake(server_hello)?;
-    let sh_raw = sh_record.to_raw();
+    let sh_raw = server_hello(client_info)?;
     conn.write_all(&sh_raw)?;
 
     // Key schedule
+
+    let context = TlsContext::new(x25519_shared.map(Box::from), None);
 
     let early_secret = hkdf_extract::<Sha384>(&[0; 48], context.key_psk());
 
@@ -227,6 +248,8 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
             &[CertificateEntry::new(&certificate)?],
         )?);
         let record = TlsPlaintext::new_handshake(cert)?;
+        println!("{}", record.to_raw().len());
+        println!("{:02x?}", record.to_raw());
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
         conn.write_all(&encrypted.to_raw())?;
