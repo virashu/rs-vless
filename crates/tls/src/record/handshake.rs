@@ -1,14 +1,18 @@
 pub mod certificate;
 pub mod certificate_request;
+pub mod certificate_verify;
 pub mod client_hello;
 pub mod encrypted_extensions;
 pub mod extension;
+pub mod finished;
 pub mod server_hello;
 
 use certificate::Certificate;
 use certificate_request::CertificateRequest;
+use certificate_verify::CertificateVerify;
 use client_hello::ClientHello;
 use encrypted_extensions::EncryptedExtensions;
+use finished::Finished;
 use server_hello::ServerHello;
 
 use anyhow::Result;
@@ -37,8 +41,8 @@ pub enum Handshake {
     EncryptedExtensions(EncryptedExtensions),
     CertificateRequest(CertificateRequest),
     Certificate(Certificate),
-    CertificateVerify,
-    Finished,
+    CertificateVerify(CertificateVerify),
+    Finished(Finished),
     NewSessionTicket,
     KeyUpdate,
 
@@ -63,8 +67,10 @@ impl RawDeser for Handshake {
             handshake_types::CERTIFICATE_REQUEST => {
                 Self::CertificateRequest(CertificateRequest::deser(data)?)
             }
-            handshake_types::CERTIFICATE_VERIFY => Self::CertificateVerify,
-            handshake_types::FINISHED => Self::Finished,
+            handshake_types::CERTIFICATE_VERIFY => {
+                Self::CertificateVerify(CertificateVerify::deser(data)?)
+            }
+            handshake_types::FINISHED => Self::Finished(Finished::deser(data)?),
             handshake_types::KEY_UPDATE => Self::KeyUpdate,
             handshake_types::MESSAGE_HASH => Self::MessageHash,
 
@@ -131,6 +137,21 @@ impl RawSer for Handshake {
                     .to_be_bytes();
 
                 res.push(handshake_types::CERTIFICATE);
+                res.extend(&length_bytes[1..=3]);
+                res.extend(raw);
+
+                res.into_boxed_slice()
+            }
+            Self::Finished(fin) => {
+                let mut res = Vec::new();
+
+                let raw = fin.ser();
+                let length = raw.len();
+                let length_bytes = TryInto::<u32>::try_into(length)
+                    .expect("Finished size exceeds maximum u32 value")
+                    .to_be_bytes();
+
+                res.push(handshake_types::FINISHED);
                 res.extend(&length_bytes[1..=3]);
                 res.extend(raw);
 

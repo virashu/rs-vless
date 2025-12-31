@@ -1,5 +1,9 @@
 use anyhow::{Result, anyhow, bail};
-use crypt::{elliptic::x25519, hash::sha::Sha384};
+use crypt::{
+    elliptic::x25519,
+    hash::{Hasher, sha::Sha384},
+    hmac::hmac_hash,
+};
 use tls::{
     cipher_suite::TLS_AES_256_GCM_SHA384,
     error::TlsAlert,
@@ -10,8 +14,10 @@ use tls::{
             Handshake,
             certificate::{Certificate, CertificateEntry},
             certificate_request::{CertificateRequest, CertificateRequestExtension},
+            certificate_verify::CertificateVerify,
             encrypted_extensions::EncryptedExtensions,
             extension::{KeyShareEntry, NamedGroup, SignatureScheme},
+            finished::Finished,
             server_hello::{ServerHello, ServerHelloExtension},
         },
     },
@@ -110,14 +116,19 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     let mut buf = [0; 2800];
     let n = conn.read(&mut buf)?;
 
+    let mut transcript = Vec::<u8>::new();
+
     // ClientHello
 
     let ch_raw = &buf[..n];
+    transcript.extend(&ch_raw[5..]);
     let ch_record = TlsPlaintext::from_raw(ch_raw)?;
     let TlsContent::Handshake(Handshake::ClientHello(client_hello)) = ch_record.fragment else {
         bail!("Not client hello");
     };
     let ch_exts = OrganizedClientExtensions::organize(client_hello.extensions);
+
+    dbg!(ch_exts.signature_algorithms);
 
     let extended = ch_exts.extended_main_secret.is_some();
 
@@ -153,6 +164,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     };
 
     let sh_raw = server_hello(client_info)?;
+    transcript.extend(&sh_raw[5..]);
     conn.write_all(&sh_raw)?;
 
     // Key schedule
@@ -165,13 +177,6 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         &derive_secret::<Sha384>(&early_secret, "derived", &[]),
         context.key_ecdhe(),
     );
-
-    let transcript = {
-        let mut x = Vec::new();
-        x.extend(&ch_raw[5..]);
-        x.extend(&sh_raw[5..]);
-        x.into_boxed_slice()
-    };
 
     // Server keys
     let server_handshake_traffic_secret: [u8; 48] =
@@ -207,24 +212,23 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     );
 
     // EncryptedExtensions
-
-    let mut ee_extensions = Vec::new();
-
-    // if extended {
-    //     ee_extensions.push(ServerHelloExtension::new_extended_main_secret());
-    // }
-
     {
+        let mut ee_extensions = Vec::new();
+
+        // if extended {
+        //     ee_extensions.push(ServerHelloExtension::new_extended_main_secret());
+        // }
+
         let ee = Handshake::EncryptedExtensions(EncryptedExtensions::new(&ee_extensions)?);
         let record = TlsPlaintext::new_handshake(ee)?;
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
         let ee_raw = encrypted.to_raw();
+        transcript.extend(&ee_raw[5..]);
         conn.write_all(&ee_raw)?;
     }
 
-    // CertificateRequest
-
+    // // CertificateRequest
     // {
     //     let cr = Handshake::CertificateRequest(CertificateRequest::new(
     //         &[],
@@ -240,16 +244,52 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     // }
 
     // Certificate
-
-    let certificate = fs::read("cert.cer")?;
     {
+        let certificate = fs::read("cert.cer")?;
+
         let cert = Handshake::Certificate(Certificate::new(
             &[],
             &[CertificateEntry::new(&certificate)?],
         )?);
         let record = TlsPlaintext::new_handshake(cert)?;
-        println!("{}", record.to_raw().len());
-        println!("{:02x?}", record.to_raw());
+        let nonce = xor(context.pad_nonce(), server_write_iv);
+        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
+        transcript.extend(&encrypted.to_raw()[5..]);
+        conn.write_all(&encrypted.to_raw())?;
+    }
+
+    // CertificateVerify
+    {
+        let transcript_hash = Sha384::hash(&transcript);
+        let sign_context = {
+            let mut acc = Vec::new();
+            acc.extend([0x20].repeat(64));
+            acc.extend(b"TLS 1.3, server CertificateVerify");
+            acc.push(0x00);
+            acc.extend(&transcript_hash);
+            acc
+        };
+        let signature = todo!();
+
+        let cv = Handshake::CertificateVerify(CertificateVerify {
+            algorithm: SignatureScheme::rsa_pss_rsae_sha256,
+            signature,
+        });
+        let record = TlsPlaintext::new_handshake(cv)?;
+        let nonce = xor(context.pad_nonce(), server_write_iv);
+        let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
+        transcript.extend(&encrypted.to_raw()[5..]);
+        conn.write_all(&encrypted.to_raw())?;
+    }
+
+    // Finished
+    {
+        let finished_key =
+            hkdf_expand_label::<Sha384>(&server_handshake_traffic_secret, "finished", &[], 48);
+        let verify_data = hmac_hash::<Sha384>(&finished_key, &Sha384::hash(&transcript));
+
+        let finished = Handshake::Finished(Finished { verify_data });
+        let record = TlsPlaintext::new_handshake(finished)?;
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
         conn.write_all(&encrypted.to_raw())?;
