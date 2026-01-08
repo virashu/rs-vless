@@ -6,6 +6,9 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 tracing.workspace = true
+
+utils.path = "../utils"
+
 bnum = "0.13.0"
 rand = "0.9.2"
 num-bigint = "0.4.6"

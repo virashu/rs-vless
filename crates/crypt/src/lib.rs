@@ -6,5 +6,3 @@ pub mod hkdf;
 pub mod hmac;
 pub mod rsa;
 pub mod symmetric;
-
-mod utils;

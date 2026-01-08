@@ -97,6 +97,7 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
+
             Self::EncryptedExtensions(e_e) => {
                 let mut res = Vec::new();
 
@@ -112,6 +113,7 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
+
             Self::CertificateRequest(c_r) => {
                 let mut res = Vec::new();
 
@@ -127,6 +129,7 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
+
             Self::Certificate(cert) => {
                 let mut res = Vec::new();
 
@@ -142,6 +145,23 @@ impl RawSer for Handshake {
 
                 res.into_boxed_slice()
             }
+
+            Self::CertificateVerify(cv) => {
+                let mut res = Vec::new();
+
+                let raw = cv.ser();
+                let length = raw.len();
+                let length_bytes = TryInto::<u32>::try_into(length)
+                    .expect("CertificateVerify size exceeds maximum u32 value")
+                    .to_be_bytes();
+
+                res.push(handshake_types::CERTIFICATE_VERIFY);
+                res.extend(&length_bytes[1..=3]);
+                res.extend(raw);
+
+                res.into_boxed_slice()
+            }
+
             Self::Finished(fin) => {
                 let mut res = Vec::new();
 

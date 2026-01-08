@@ -1,1 +1,6 @@
 /target
+
+cert.pem
+cert.cer
+key.pem
+key.der

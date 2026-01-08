@@ -9,6 +9,8 @@ tracing.workspace = true
 
 tls.path = "crates/tls"
 crypt.path = "crates/crypt"
+asn1.path = "crates/asn1"
+utils.path = "crates/utils"
 
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 num-bigint = "0.4.6"

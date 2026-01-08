@@ -1,8 +1,13 @@
 use anyhow::{Result, anyhow, bail};
+use asn1::{DataElement, parse_der};
 use crypt::{
     elliptic::x25519,
-    hash::{Hasher, sha::Sha384},
+    hash::{
+        Hasher,
+        sha::{Sha256, Sha384},
+    },
     hmac::hmac_hash,
+    rsa::{PrivateKey, PublicKey},
 };
 use tls::{
     cipher_suite::TLS_AES_256_GCM_SHA384,
@@ -13,7 +18,6 @@ use tls::{
         handshake::{
             Handshake,
             certificate::{Certificate, CertificateEntry},
-            certificate_request::{CertificateRequest, CertificateRequestExtension},
             certificate_verify::CertificateVerify,
             encrypted_extensions::EncryptedExtensions,
             extension::{KeyShareEntry, NamedGroup, SignatureScheme},
@@ -22,6 +26,7 @@ use tls::{
         },
     },
 };
+use utils::concat_dyn;
 
 use std::{
     collections::HashMap,
@@ -36,6 +41,31 @@ use crate::organized_extensions::OrganizedClientExtensions;
 mod organized_extensions;
 
 const VERSION: u16 = 0x0304;
+
+fn load_rsa_keys() -> (PrivateKey, PublicKey) {
+    let encoded = std::fs::read("key.der").unwrap();
+
+    if let DataElement::Sequence(seq) = parse_der(&encoded)
+        && let DataElement::OctetString(octets) = &seq[2]
+        && let DataElement::Sequence(numbers) = parse_der(octets)
+        && let DataElement::Integer(modulus) = &numbers[1]
+        && let DataElement::Integer(public_exponent) = &numbers[2]
+        && let DataElement::Integer(private_exponent) = &numbers[3]
+    {
+        (
+            PrivateKey {
+                modulus: modulus.clone(),
+                exponent: private_exponent.clone(),
+            },
+            PublicKey {
+                modulus: modulus.clone(),
+                exponent: public_exponent.clone(),
+            },
+        )
+    } else {
+        panic!()
+    }
+}
 
 fn xor<const N: usize>(mut a: [u8; N], b: [u8; N]) -> [u8; N] {
     for i in 0..N {
@@ -128,10 +158,6 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
     };
     let ch_exts = OrganizedClientExtensions::organize(client_hello.extensions);
 
-    dbg!(ch_exts.signature_algorithms);
-
-    let extended = ch_exts.extended_main_secret.is_some();
-
     // EC-DHE
 
     let key_share = ch_exts
@@ -213,35 +239,14 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
     // EncryptedExtensions
     {
-        let mut ee_extensions = Vec::new();
-
-        // if extended {
-        //     ee_extensions.push(ServerHelloExtension::new_extended_main_secret());
-        // }
-
-        let ee = Handshake::EncryptedExtensions(EncryptedExtensions::new(&ee_extensions)?);
+        let ee = Handshake::EncryptedExtensions(EncryptedExtensions::new(&[])?);
         let record = TlsPlaintext::new_handshake(ee)?;
+        transcript.extend(&record.to_raw()[5..]);
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
         let ee_raw = encrypted.to_raw();
-        transcript.extend(&ee_raw[5..]);
         conn.write_all(&ee_raw)?;
     }
-
-    // // CertificateRequest
-    // {
-    //     let cr = Handshake::CertificateRequest(CertificateRequest::new(
-    //         &[],
-    //         &[CertificateRequestExtension::new_signature_algorithms(&[
-    //             SignatureScheme::rsa_pkcs1_sha256,
-    //         ])?],
-    //     )?);
-    //     let record = TlsPlaintext::new_handshake(cr)?;
-    //     let nonce = xor(context.pad_nonce(), server_write_iv);
-    //     let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-    //     let cr_raw = encrypted.to_raw();
-    //     conn.write_all(&cr_raw)?;
-    // }
 
     // Certificate
     {
@@ -252,33 +257,42 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
             &[CertificateEntry::new(&certificate)?],
         )?);
         let record = TlsPlaintext::new_handshake(cert)?;
+        transcript.extend(&record.to_raw()[5..]);
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-        transcript.extend(&encrypted.to_raw()[5..]);
         conn.write_all(&encrypted.to_raw())?;
     }
 
     // CertificateVerify
     {
         let transcript_hash = Sha384::hash(&transcript);
-        let sign_context = {
-            let mut acc = Vec::new();
-            acc.extend([0x20].repeat(64));
-            acc.extend(b"TLS 1.3, server CertificateVerify");
-            acc.push(0x00);
-            acc.extend(&transcript_hash);
-            acc
-        };
-        let signature = todo!();
+        let sign_context = concat_dyn![
+            [0x20].repeat(64),
+            b"TLS 1.3, server CertificateVerify",
+            [0x00],
+            transcript_hash,
+        ];
+        let (private_key, public_key) = load_rsa_keys();
+        let signature = crypt::rsa::rsassa_pss_sign::<Sha256, { Sha256::DIGEST_SIZE }>(
+            &private_key,
+            &sign_context,
+        );
 
-        let cv = Handshake::CertificateVerify(CertificateVerify {
-            algorithm: SignatureScheme::rsa_pss_rsae_sha256,
-            signature,
-        });
+        crypt::rsa::rsassa_pss_verify::<Sha256, { Sha256::DIGEST_SIZE }>(
+            &public_key,
+            &sign_context,
+            &signature,
+        )
+        .unwrap();
+
+        let cv = Handshake::CertificateVerify(CertificateVerify::new(
+            SignatureScheme::rsa_pss_pss_sha256,
+            &signature,
+        )?);
         let record = TlsPlaintext::new_handshake(cv)?;
+        transcript.extend(&record.to_raw()[5..]);
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
-        transcript.extend(&encrypted.to_raw()[5..]);
         conn.write_all(&encrypted.to_raw())?;
     }
 
@@ -290,6 +304,7 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
 
         let finished = Handshake::Finished(Finished { verify_data });
         let record = TlsPlaintext::new_handshake(finished)?;
+        transcript.extend(&record.to_raw()[5..]);
         let nonce = xor(context.pad_nonce(), server_write_iv);
         let encrypted = TlsCiphertext::encrypt(&record, server_write_key, nonce)?;
         conn.write_all(&encrypted.to_raw())?;

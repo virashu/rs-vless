@@ -1,9 +1,7 @@
 use anyhow::Result;
+use utils::concat_dyn;
 
-use crate::{
-    macros::flat,
-    parse::{DataVec8, DataVec16, DataVec24, RawDeser, RawSer, RawSize},
-};
+use crate::parse::{DataVec8, DataVec16, DataVec24, RawDeser, RawSer, RawSize};
 
 #[derive(Clone, Debug)]
 pub struct CertificateExtension {}
@@ -78,7 +76,7 @@ impl RawDeser for CertificateEntry {
 
 impl RawSer for CertificateEntry {
     fn ser(&self) -> Box<[u8]> {
-        flat!(self.content.ser(), self.extensions.ser()).into_boxed_slice()
+        concat_dyn![self.content.ser(), self.extensions.ser()]
     }
 }
 
@@ -111,10 +109,9 @@ impl RawDeser for Certificate {
 
 impl RawSer for Certificate {
     fn ser(&self) -> Box<[u8]> {
-        flat!(
+        concat_dyn![
             self.certificate_request_context.ser(),
             self.certificate_list.ser()
-        )
-        .into_boxed_slice()
+        ]
     }
 }

@@ -7,12 +7,11 @@ use alert::Alert;
 use handshake::Handshake;
 
 use anyhow::{Result, anyhow};
+use utils::concat_dyn;
 
 use crate::{
     LEGACY_VERSION_BYTES,
-    macros::flat,
     parse::{RawDeser, RawSer},
-    record::content_types::APPLICATION_DATA,
 };
 
 pub mod content_types {
@@ -123,22 +122,22 @@ impl TlsCiphertext {
         let content = plain.fragment.ser();
         let content_type = plain.fragment.content_type();
         let padding: Vec<u8> = vec![];
-        let plaintext = flat!(content, [content_type], &padding);
+        let plaintext = concat_dyn!(content, [content_type], &padding);
 
         #[allow(clippy::cast_possible_truncation)]
         let plaintext_length = plain.length + padding.len() as u16 + 1;
 
         let length = plaintext_length + 16;
 
-        let additional_data = flat!(
-            [APPLICATION_DATA],
+        let additional_data = concat_dyn!(
+            [content_types::APPLICATION_DATA],
             LEGACY_VERSION_BYTES,
             length.to_be_bytes()
         );
 
         let (ciphertext, tag) =
             crypt::aead::aes_gcm::encrypt_aes_256_gcm(&key, &nonce, &plaintext, &additional_data)?;
-        let encrypted_record = flat!(ciphertext, tag).into_boxed_slice();
+        let encrypted_record = concat_dyn!(ciphertext, tag);
 
         Ok(Self {
             length,
@@ -147,8 +146,8 @@ impl TlsCiphertext {
     }
 
     pub fn decrypt(&self, key: [u8; 32], nonce: [u8; 12]) -> Result<TlsPlaintext> {
-        let additional_data = flat!(
-            [APPLICATION_DATA],
+        let additional_data = concat_dyn!(
+            [content_types::APPLICATION_DATA],
             LEGACY_VERSION_BYTES,
             self.length.to_be_bytes()
         );
@@ -172,7 +171,7 @@ impl TlsCiphertext {
         let content = &plaintext[..index];
         let content_type = plaintext[index];
 
-        TlsPlaintext::from_raw(&flat!(
+        TlsPlaintext::from_raw(&concat_dyn!(
             [content_type],
             LEGACY_VERSION_BYTES,
             (content.len() as u16).to_be_bytes(),
@@ -206,12 +205,11 @@ impl RawDeser for TlsCiphertext {
 
 impl RawSer for TlsCiphertext {
     fn ser(&self) -> Box<[u8]> {
-        flat!(
-            [APPLICATION_DATA],
+        concat_dyn!(
+            [content_types::APPLICATION_DATA],
             LEGACY_VERSION_BYTES,
             self.length.to_be_bytes(),
             &self.encrypted_record
         )
-        .into_boxed_slice()
     }
 }
