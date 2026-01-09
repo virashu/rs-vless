@@ -1,5 +1,9 @@
 use anyhow::{Result, anyhow, bail};
-use asn1::{DataElement, parse_der};
+use asn1::{
+    DataElement, X509CertificateV3,
+    object_identifiers::{rsassaPss, sha256WithRSAEncryption},
+    parse_der,
+};
 use crypt::{
     elliptic::x25519,
     hash::{
@@ -42,6 +46,12 @@ mod organized_extensions;
 
 const VERSION: u16 = 0x0304;
 
+fn load_cert() -> X509CertificateV3 {
+    let certificate = fs::read("cert.cer").unwrap();
+    let data = parse_der(&certificate);
+    X509CertificateV3::from_data_element(&data)
+}
+
 fn load_rsa_keys() -> (PrivateKey, PublicKey) {
     let encoded = std::fs::read("key.der").unwrap();
 
@@ -54,12 +64,12 @@ fn load_rsa_keys() -> (PrivateKey, PublicKey) {
     {
         (
             PrivateKey {
-                modulus: modulus.clone(),
-                exponent: private_exponent.clone(),
+                modulus: modulus.0.clone(),
+                exponent: private_exponent.0.clone(),
             },
             PublicKey {
-                modulus: modulus.clone(),
-                exponent: public_exponent.clone(),
+                modulus: modulus.0.clone(),
+                exponent: public_exponent.0.clone(),
             },
         )
     } else {
@@ -263,6 +273,18 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         conn.write_all(&encrypted.to_raw())?;
     }
 
+    // Determine certificate type
+    let cert = load_cert();
+    let signature_scheme = if cert.signature_algorithm.is(sha256WithRSAEncryption) {
+        tracing::info!("Using RSAE");
+        SignatureScheme::rsa_pss_rsae_sha256
+    } else if cert.signature_algorithm.is(rsassaPss) {
+        tracing::info!("Using RSASSA-PSS");
+        SignatureScheme::rsa_pss_pss_sha256
+    } else {
+        unimplemented!();
+    };
+
     // CertificateVerify
     {
         let transcript_hash = Sha384::hash(&transcript);
@@ -285,10 +307,8 @@ fn handshake(conn: &mut TcpStream) -> Result<()> {
         )
         .unwrap();
 
-        let cv = Handshake::CertificateVerify(CertificateVerify::new(
-            SignatureScheme::rsa_pss_pss_sha256,
-            &signature,
-        )?);
+        let cv =
+            Handshake::CertificateVerify(CertificateVerify::new(signature_scheme, &signature)?);
         let record = TlsPlaintext::new_handshake(cv)?;
         transcript.extend(&record.to_raw()[5..]);
         let nonce = xor(context.pad_nonce(), server_write_iv);

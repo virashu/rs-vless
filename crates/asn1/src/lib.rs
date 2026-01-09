@@ -1,15 +1,49 @@
 use num_bigint::BigUint;
 
-pub mod native_tags {
-    pub const BOOLEAN: u8 = 0x01;
-    pub const INTEGER: u8 = 0x02;
-    pub const BIT_STRING: u8 = 0x03;
-    pub const OCTET_STRING: u8 = 0x04;
-    pub const NULL: u8 = 0x05;
-    pub const OBJECT_IDENTIFIER: u8 = 0x06;
-    pub const IA5_STRING: u8 = 0x16; // Primitive
+#[allow(non_upper_case_globals)]
+pub mod object_identifiers {
+    pub const pkcs_1: &[u32] = &[1, 2, 840, 113_549, 1, 1];
 
-    pub const SEQUENCE: u8 = 0x30; // Constructed
+    pub const rsaEncryption: &[u32] = &[1, 2, 840, 113_549, 1, 1, 1];
+    pub const rsassaPss: &[u32] = &[1, 2, 840, 113_549, 1, 1, 10];
+    pub const sha256WithRSAEncryption: &[u32] = &[1, 2, 840, 113_549, 1, 1, 11];
+}
+
+pub mod der_native_tags {
+    // Primitive -- |00|0|xxxxx|
+    pub const BOOLEAN: u32 = 0x01;
+    pub const INTEGER: u32 = 0x02;
+    pub const BIT_STRING: u32 = 0x03;
+    pub const OCTET_STRING: u32 = 0x04;
+    pub const NULL: u32 = 0x05;
+    pub const OBJECT_IDENTIFIER: u32 = 0x06;
+    pub const PRINTABLE_STRING: u32 = 0x13;
+    pub const IA5_STRING: u32 = 0x16;
+    pub const UTC_TIME: u32 = 0x17;
+    pub const UTF8_STRING: u32 = 0x0C;
+
+    // Concstructed -- |00|1|xxxxx|
+    pub const SEQUENCE: u32 = 0x10;
+    pub const SET: u32 = 0x11;
+}
+
+pub mod tag_classes {
+    pub const NATIVE: u8 = 0;
+    pub const APPLICATION: u8 = 1;
+    pub const CONTEXT_SPECIFIC: u8 = 2;
+    pub const PRIVATE: u8 = 3;
+}
+
+#[derive(Clone, Debug)]
+pub struct Integer(pub BigUint);
+
+#[derive(Clone, Debug)]
+pub struct ObjectIdentifier(pub Box<[u32]>);
+
+impl ObjectIdentifier {
+    pub fn is(&self, id: &[u32]) -> bool {
+        *self.0 == *id
+    }
 }
 
 #[allow(clippy::cast_possible_truncation, reason = "expected behavior")]
@@ -60,6 +94,61 @@ fn decode_object_identifier(raw: &[u8]) -> Box<[u32]> {
     res.into_boxed_slice()
 }
 
+pub struct X509CertificateV3 {
+    pub version: u32,
+    pub serial_number: Integer,
+    pub signature_algorithm: ObjectIdentifier,
+}
+
+impl X509CertificateV3 {
+    pub fn from_data_element(value: &DataElement) -> Self {
+        if let DataElement::Sequence(seq_o) = value
+            && let DataElement::Sequence(seq_i) = &seq_o[0]
+            // Inner
+            && let DataElement::Other(seq_ver) = &seq_i[0]
+            && let DataElement::Integer(version) = &seq_ver[0]
+            && let DataElement::Integer(serial) = &seq_i[1]
+            && let DataElement::Sequence(seq_oid) = &seq_i[2]
+            && let DataElement::ObjectIdentifier(algo) = &seq_oid[0]
+        {
+            Self {
+                version: version.0.clone().try_into().unwrap(),
+                serial_number: serial.clone(),
+                signature_algorithm: algo.clone(),
+            }
+        } else {
+            unimplemented!()
+        }
+    }
+}
+
+pub struct Tag {
+    pub tag_class: u8,
+    pub is_constructed: bool,
+    pub tag_type: u32,
+}
+
+impl Tag {
+    pub fn parse(raw: &mut dyn Iterator<Item = u8>) -> Self {
+        let tag = raw.next().unwrap();
+
+        let tag_class = tag >> 6;
+        let is_constructed = (tag >> 5) & 1 != 0;
+        let mut tag_type = u32::from(tag & 0b11111);
+
+        if tag_type == 0b11111 {
+            let raw_type = raw.take_while(|x| x & 0x80 != 0).collect::<Box<[u8]>>();
+            tag_type = decode_object_identifier_component(&raw_type);
+        }
+
+        Tag {
+            tag_class,
+            is_constructed,
+            tag_type,
+        }
+    }
+}
+
 enum Length {
     Definite(usize),
     Indefinite,
@@ -97,70 +186,125 @@ impl Length {
 pub enum DataElement {
     EndOfContent,
     Boolean(bool),
-    Integer(BigUint),
-    BitString,
+    Integer(Integer),
+    BitString(Box<[u8]>),
     OctetString(Box<[u8]>),
     Null,
-    ObjectIdentifier(Box<[u32]>),
+    ObjectIdentifier(ObjectIdentifier),
     ObjectDescriptor,
     External,
     Real(f32),
     Enumerated,
     Sequence(Box<[DataElement]>),
+    Set(Box<[DataElement]>),
+    PrintableString(Box<str>),
     IA5String(Box<str>),
+    UTF8String(Box<str>),
+    UtcTime(Box<str>),
+
+    Other(Box<[DataElement]>),
 }
 
 impl DataElement {
-    pub fn parse(raw: &mut dyn Iterator<Item = u8>) -> Self {
-        let tag = raw.next().unwrap();
-        // let tag_class = tag >> 6;
-        // let is_constructed = (tag >> 5) & 1 != 0;
-        // let tag_type = tag & 0b11111;
+    pub fn parse_der(raw: &mut dyn Iterator<Item = u8>) -> Self {
+        let tag = Tag::parse(raw);
 
-        let length = Length::parse(raw);
-        let Length::Definite(len) = length else {
+        let Length::Definite(len) = Length::parse(raw) else {
             unimplemented!()
         };
 
-        match tag {
-            native_tags::SEQUENCE => {
+        match tag.tag_type {
+            der_native_tags::INTEGER => Self::Integer(Integer(BigUint::from_bytes_be(
+                &raw.take(len).collect::<Box<[u8]>>(),
+            ))),
+
+            der_native_tags::BIT_STRING => Self::BitString(raw.take(len).collect()),
+
+            der_native_tags::OCTET_STRING => Self::OctetString(raw.take(len).collect()),
+
+            der_native_tags::NULL => Self::Null,
+
+            der_native_tags::SEQUENCE => {
                 let mut sub = raw.take(len).peekable();
                 let mut elements = Vec::new();
 
                 while sub.peek().is_some() {
-                    elements.push(Self::parse(&mut sub));
+                    elements.push(Self::parse_der(&mut sub));
                 }
 
                 Self::Sequence(elements.into_boxed_slice())
             }
 
-            native_tags::INTEGER => Self::Integer(BigUint::from_bytes_be(
-                &raw.take(len).collect::<Box<[u8]>>(),
-            )),
+            der_native_tags::SET => {
+                let mut sub = raw.take(len).peekable();
+                let mut elements = Vec::new();
 
-            native_tags::OCTET_STRING => Self::OctetString(raw.take(len).collect()),
+                while sub.peek().is_some() {
+                    elements.push(Self::parse_der(&mut sub));
+                }
 
-            native_tags::NULL => Self::Null,
-
-            native_tags::OBJECT_IDENTIFIER => {
-                let bytes = raw.take(len).collect::<Box<[u8]>>();
-
-                Self::ObjectIdentifier(decode_object_identifier(&bytes))
+                Self::Set(elements.into_boxed_slice())
             }
 
-            native_tags::IA5_STRING => {
+            der_native_tags::PRINTABLE_STRING => {
+                let bytes = raw.take(len).collect::<Box<[u8]>>();
+                let string = String::from_utf8_lossy(&bytes);
+
+                Self::PrintableString(Box::from(string))
+            }
+
+            der_native_tags::OBJECT_IDENTIFIER => {
+                let bytes = raw.take(len).collect::<Box<[u8]>>();
+
+                Self::ObjectIdentifier(ObjectIdentifier(decode_object_identifier(&bytes)))
+            }
+
+            der_native_tags::IA5_STRING => {
                 let bytes = raw.take(len).collect::<Box<[u8]>>();
                 let string = String::from_utf8_lossy(&bytes);
 
                 Self::IA5String(Box::from(string))
             }
 
-            _ => unimplemented!("0x{:02x}", tag),
+            der_native_tags::UTF8_STRING => {
+                let bytes = raw.take(len).collect::<Box<[u8]>>();
+                let string = String::from_utf8_lossy(&bytes);
+
+                Self::UTF8String(Box::from(string))
+            }
+
+            der_native_tags::UTC_TIME => {
+                let bytes = raw.take(len).collect::<Box<[u8]>>();
+                let string = String::from_utf8_lossy(&bytes);
+
+                Self::UtcTime(Box::from(string))
+            }
+
+            _ => {
+                if tag.tag_class == tag_classes::NATIVE {
+                    unimplemented!(
+                        "Native tag: 0x{:02x} ({})",
+                        tag.tag_type,
+                        tag.is_constructed
+                    );
+                } else if tag.is_constructed {
+                    let mut sub = raw.take(len).peekable();
+                    let mut elements = Vec::new();
+
+                    while sub.peek().is_some() {
+                        elements.push(Self::parse_der(&mut sub));
+                    }
+
+                    Self::Other(elements.into_boxed_slice())
+                } else {
+                    unimplemented!("0x{:02x}", tag.tag_type);
+                }
+            }
         }
     }
 }
 
 pub fn parse_der(raw: &[u8]) -> DataElement {
     let mut iter = raw.iter().copied();
-    DataElement::parse(&mut iter)
+    DataElement::parse_der(&mut iter)
 }

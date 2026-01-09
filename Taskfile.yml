@@ -13,6 +13,13 @@ tasks:
 
   generate_cert:
     cmd: |
+      openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -sha256 -days 7 -nodes \
+        -subj "/C=XX/ST=StateName/L=CityName/O=CompanyName/OU=CompanySectionName/CN=127.0.0.1"
+      openssl x509 -outform der -in cert.pem -out cert.cer
+      openssl rsa -outform der -in key.pem -out key.der
+
+  generate_cert_pss:
+    cmd: |
       openssl genpkey -algorithm RSA-PSS \
         -pkeyopt rsa_keygen_bits:2048 \
         -pkeyopt rsa_keygen_pubexp:65537 \
